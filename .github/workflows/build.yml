@@ -1,0 +1,695 @@
+name: Compile Kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      clang_version:
+        description: Type the clang version of ur kernel
+        required: true
+        type: choice
+        default: clang-r563880c
+        options:
+          - clang-r416183b1 # lineage-19.1 in android12-qpr3-release
+          - clang-r450784d  # lineage-20.0 in android13-qpr3-release
+          - clang-r487747c  # lineage-21.0 in android14-qpr3-release
+          - clang-r536225   # lineage-22.2 in android15-qpr2-release
+          - clang-r547379   # lineage-23.0
+          - clang-r563880c  # lineage-23.2
+      kernel_source:
+        description: Kernel Source Code
+        required: true
+        type: choice
+        options:
+          - LineageOS
+          - crdroidandroid
+          - OnePlus12R-development
+      kernel_branch:
+        description: Kernel Branch (such as lineage-23.2 or sixteen-qpr1)
+        required: true
+        type: string
+        default: ""
+      ksu_type:
+        description: KernelSU Version
+        required: true
+        type: choice
+        options:
+          - None
+          - Official-KernelSU
+          - KernelSU-Next
+          - KernelSU-Next-with-susfs
+          - KowSU
+          - ReSukiSU
+          - ReSukiSU-with-susfs
+          - ReSukiSU-with-susfs-KPM
+
+jobs:
+  Kernel_CI:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}-${{ inputs.ksu_type }}-${{ inputs.clang_version }}
+      cancel-in-progress: true
+
+    permissions:
+      contents: write
+      actions: read
+      checks: read
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOC: sm8550
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SWAP
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 16
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt update
+          sudo apt install -y \
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            libelf-dev \
+            libdw-dev \
+            build-essential \
+            lz4 \
+            git \
+            python3 \
+            curl \
+            ccache \
+            dwarves \
+            cpio \
+            gcc-aarch64-linux-gnu
+
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          if [ -z "${{ inputs.kernel_branch }}" ]; then
+            echo "kernel_branch cannot be empty"
+            exit 1
+          fi
+
+          case "${{ inputs.kernel_source }}" in
+            LineageOS|OnePlus12R-development)
+              if [[ ! "${{ inputs.kernel_branch }}" =~ ^lineage- ]]; then
+                echo "Warning: ${{ inputs.kernel_source }} usually uses lineage-* branches"
+              fi
+              ;;
+            crdroidandroid)
+              echo "Note: crdroidandroid branch naming may differ from LineageOS"
+              ;;
+            *)
+              echo "Unknown kernel_source: ${{ inputs.kernel_source }}"
+              exit 1
+              ;;
+          esac
+
+          if [[ "${{ inputs.ksu_type }}" == "KernelSU-Next-with-susfs" ]]; then
+            echo "::error::KernelSU-Next-with-susfs is temporarily disabled."
+            echo "::error::As of 2026-04-23, the previously documented upstream entry points are inconsistent:"
+            echo "::error::the raw next-susfs setup URL returns 404 in GitHub Actions and the rifsxd/KernelSU-Next repo does not expose a cloneable next-susfs branch."
+            echo "::error::Please use KernelSU-Next or another supported option until a known-good upstream ref is pinned."
+            exit 1
+          fi
+
+      - name: Set build metadata
+        run: |
+          set -euo pipefail
+          SAFE_KERNEL_BRANCH="${{ inputs.kernel_branch }}"
+          SAFE_KERNEL_BRANCH="${SAFE_KERNEL_BRANCH//\//-}"
+          echo "BUILD_TIMESTAMP=$(date -u +'%Y%m%d_%H%M')" >> "$GITHUB_ENV"
+          echo "SAFE_KERNEL_BRANCH=${SAFE_KERNEL_BRANCH}" >> "$GITHUB_ENV"
+          echo "CCACHE_PREFIX=${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}-${{ inputs.clang_version }}" >> "$GITHUB_ENV"
+          echo "CCACHE_KEY=${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}-${{ inputs.clang_version }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - name: Restore AOSP Clang cache
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: toolchains/${{ inputs.clang_version }}
+          key: ${{ runner.os }}-aosp-clang-${{ inputs.clang_version }}
+
+      - name: Restore ccache
+        id: ccache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ${{ env.CCACHE_KEY }}
+          restore-keys: |
+            ${{ env.CCACHE_PREFIX }}-
+            ${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${{ inputs.clang_version }}-
+            ${{ runner.os }}-ccache-${{ inputs.clang_version }}-
+
+      - name: Clone Kernel Source
+        run: |
+          set -euo pipefail
+
+          KERNEL_REPO="https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}.git"
+          MODULES_REPO="https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}-modules.git"
+
+          echo "Cloning kernel repo: $KERNEL_REPO"
+          git clone --depth=1 --single-branch --no-tags -b "${{ inputs.kernel_branch }}" "$KERNEL_REPO" "${SOC}" || {
+            echo "::error::Failed to clone kernel repo for branch '${{ inputs.kernel_branch }}': $KERNEL_REPO"
+            exit 1
+          }
+
+          echo "Cloning modules repo: $MODULES_REPO"
+          git clone --depth=1 --single-branch --no-tags -b "${{ inputs.kernel_branch }}" "$MODULES_REPO" "${SOC}-modules" || {
+            echo "::error::Failed to clone modules repo for branch '${{ inputs.kernel_branch }}': $MODULES_REPO"
+            echo "::error::This kernel tree expects a sibling '${SOC}-modules' repo during defconfig/Kconfig resolution."
+            exit 1
+          }
+
+      - name: Download AOSP Clang
+        if: steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.clang_version }}" in
+            "clang-r416183b1")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-qpr3-release/clang-r416183b1.tar.gz"
+              ;;
+            "clang-r450784d")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android13-qpr3-release/clang-r450784d.tar.gz"
+              ;;
+            "clang-r487747c")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-qpr3-release/clang-r487747c.tar.gz"
+              ;;
+            "clang-r536225")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android15-qpr2-release/clang-r536225.tar.gz"
+              ;;
+            "clang-r547379")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android16-qpr2-release/clang-r547379.tar.gz"
+              ;;
+            "clang-r563880c")
+              URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android16-qpr2-release/clang-r563880c.tar.gz"
+              ;;
+            *)
+              echo "Unsupported clang version: ${{ inputs.clang_version }}"
+              exit 1
+              ;;
+          esac
+
+          mkdir -p "toolchains/${{ inputs.clang_version }}"
+          curl --retry 5 --retry-delay 3 --retry-all-errors -fL "$URL" -o "${{ inputs.clang_version }}.tar.gz"
+          tar -xf "${{ inputs.clang_version }}.tar.gz" -C "toolchains/${{ inputs.clang_version }}"
+          rm -f "${{ inputs.clang_version }}.tar.gz"
+
+      - name: Validate AOSP Clang
+        run: |
+          set -euo pipefail
+          test -x "${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin/clang"
+
+      - name: Compile Kernel
+        run: |
+          set -euo pipefail
+
+          apply_susfs_task_mmu_fix() {
+            local file="fs/proc/task_mmu.c"
+
+            if grep -q 'susfs_def.h' "$file"; then
+              echo "[+] task_mmu.c already includes susfs_def.h."
+              return 0
+            fi
+
+            if grep -q '^#include <linux/pkeys.h>$' "$file"; then
+              sed -i '/^#include <linux\/pkeys.h>$/a #ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs_def.h>\n#endif' "$file"
+              echo "[+] Applied fallback susfs include fix to task_mmu.c."
+              return 0
+            fi
+
+            echo "[-] Could not find a stable insertion point in $file."
+            return 1
+          }
+
+          detect_kernelsu_driver_dir() {
+            if test -d "common/drivers"; then
+              echo "common/drivers"
+            elif test -d "drivers"; then
+              echo "drivers"
+            else
+              return 1
+            fi
+          }
+
+          kernelsu_kconfig_source_path() {
+            local driver_dir="$1"
+            echo "${driver_dir}/kernelsu/Kconfig"
+          }
+
+          ensure_line_in_file() {
+            local file="$1"
+            local line="$2"
+
+            grep -qxF "$line" "$file" || printf '%s\n' "$line" >> "$file"
+          }
+
+          insert_line_before_first_match() {
+            local file="$1"
+            local match_line="$2"
+            local insert_line="$3"
+            local tmp_file
+
+            grep -qxF "$insert_line" "$file" && return 0
+
+            tmp_file="$(mktemp)"
+            awk -v match_line="$match_line" -v insert_line="$insert_line" '
+              !inserted && $0 == match_line {
+                print insert_line
+                inserted = 1
+              }
+              { print }
+              END {
+                if (!inserted) {
+                  print insert_line
+                }
+              }
+            ' "$file" > "$tmp_file"
+            mv "$tmp_file" "$file"
+          }
+
+          patch_susfs_kernelsu_layout() {
+            local file="fs/susfs.c"
+            local driver_dir
+            local target_include
+
+            if [[ ! -f "$file" ]]; then
+              return 0
+            fi
+
+            driver_dir="$(detect_kernelsu_driver_dir)" || return 0
+            target_include="../${driver_dir}/kernelsu/hook/core_hook.h"
+
+            if [[ -f "${driver_dir}/kernelsu/hook/core_hook.h" ]] && [[ ! -f "${driver_dir}/kernelsu/core_hook.h" ]]; then
+              sed -i "s|\"\\.\\./drivers/kernelsu/core_hook.h\"|\"${target_include}\"|" "$file"
+              echo "[+] Patched susfs core_hook include for nested KernelSU layout."
+            fi
+          }
+
+          patch_kernelsu_for_susfs() {
+            local ksu_repo_dir="$1"
+            local ksu_dir="$2"
+            local patch_file="${ksu_repo_dir}/10_enable_susfs_for_ksu.patch"
+            local kconfig_file="${ksu_dir}/Kconfig"
+
+            test -f "$kconfig_file" || {
+              echo "::error::KernelSU Kconfig not found at $kconfig_file"
+              exit 1
+            }
+
+            if grep -q 'KSU_SUSFS' "$kconfig_file"; then
+              echo "[+] KernelSU tree already contains KSU_SUSFS entries."
+              return 0
+            fi
+
+            test -f "$patch_file" || {
+              echo "::error::Missing KernelSU susfs patch at $patch_file"
+              exit 1
+            }
+
+            (
+              cd "$ksu_repo_dir"
+              patch -p1 < "$(basename "$patch_file")"
+            ) || {
+              echo "::error::Failed to apply KernelSU susfs patch in $ksu_repo_dir"
+              exit 1
+            }
+
+            grep -q 'KSU_SUSFS' "$kconfig_file" || {
+              echo "::error::KernelSU susfs patch applied but KSU_SUSFS is still missing from $kconfig_file"
+              exit 1
+            }
+          }
+
+          require_kernelsu_susfs_support() {
+            local ksu_dir="$1"
+            local kconfig_file="${ksu_dir}/Kconfig"
+
+            test -f "$kconfig_file" || {
+              echo "::error::KernelSU Kconfig not found at $kconfig_file"
+              exit 1
+            }
+
+            grep -q 'KSU_SUSFS' "$kconfig_file" || {
+              echo "::error::KernelSU tree at $ksu_dir does not expose KSU_SUSFS in Kconfig"
+              exit 1
+            }
+          }
+
+          setup_kernelsu_repo() {
+            local owner="$1"
+            local repo="$2"
+            local requested_ref="$3"
+            local allow_fallbacks="${4:-0}"
+            local repo_dir="$repo"
+            local driver_dir
+            local kconfig_source
+            local ref
+            local cloned=0
+            local refs_to_try
+
+            driver_dir="$(detect_kernelsu_driver_dir)" || {
+              echo "::error::drivers directory not found in kernel tree"
+              exit 1
+            }
+            kconfig_source="$(kernelsu_kconfig_source_path "$driver_dir")"
+
+            rm -rf "$repo_dir"
+
+            refs_to_try="$requested_ref"
+            if [[ "$allow_fallbacks" == "1" ]]; then
+              refs_to_try="$refs_to_try dev main"
+            fi
+
+            for ref in $refs_to_try; do
+              if [[ -z "$ref" ]]; then
+                continue
+              fi
+
+              if git clone --depth=1 --single-branch --no-tags -b "$ref" "https://github.com/${owner}/${repo}.git" "$repo_dir"; then
+                echo "[+] Cloned ${owner}/${repo} branch '$ref'."
+                cloned=1
+                break
+              fi
+
+              rm -rf "$repo_dir"
+              echo "[!] ${owner}/${repo} branch '$ref' is unavailable, trying next fallback..."
+            done
+
+            if [[ "$cloned" -ne 1 ]]; then
+              echo "::error::Failed to clone ${owner}/${repo} from https://github.com/${owner}/${repo}.git using refs: $refs_to_try"
+              exit 1
+            fi
+
+            rm -rf "$driver_dir/kernelsu"
+            ln -sfn "$(realpath --relative-to="$driver_dir" "$repo_dir/kernel")" "$driver_dir/kernelsu"
+
+            ensure_line_in_file "$driver_dir/Makefile" 'obj-$(CONFIG_KSU) += kernelsu/'
+            insert_line_before_first_match "$driver_dir/Kconfig" "endmenu" "source \"$kconfig_source\""
+          }
+
+          setup_kernelsu_next() {
+            local requested_ref="$1"
+            setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$requested_ref" 1
+          }
+
+          set_config_value() {
+            local config_file="$1"
+            local key="$2"
+            local value="$3"
+
+            if [[ "$value" == "n" ]]; then
+              if grep -q "^${key}=" "$config_file"; then
+                sed -i "s|^${key}=.*|# ${key} is not set|" "$config_file"
+              elif grep -q "^# ${key} is not set$" "$config_file"; then
+                :
+              else
+                echo "# ${key} is not set" >> "$config_file"
+              fi
+            else
+              if grep -q "^${key}=" "$config_file"; then
+                sed -i "s|^${key}=.*|${key}=${value}|" "$config_file"
+              elif grep -q "^# ${key} is not set$" "$config_file"; then
+                sed -i "s|^# ${key} is not set$|${key}=${value}|" "$config_file"
+              else
+                echo "${key}=${value}" >> "$config_file"
+              fi
+            fi
+          }
+
+          enable_config_values() {
+            local config_file="$1"
+            shift
+            local key
+
+            for key in "$@"; do
+              set_config_value "$config_file" "$key" y
+            done
+          }
+
+          enable_susfs_configs() {
+            local config_file="$1"
+
+            enable_config_values "$config_file" \
+              CONFIG_KSU_SUSFS \
+              CONFIG_KSU_SUSFS_SUS_PATH \
+              CONFIG_KSU_SUSFS_SUS_MOUNT \
+              CONFIG_KSU_SUSFS_SUS_KSTAT \
+              CONFIG_KSU_SUSFS_SPOOF_UNAME \
+              CONFIG_KSU_SUSFS_ENABLE_LOG \
+              CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+              CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT \
+              CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+          }
+
+          enable_ksu_common_configs() {
+            local config_file="$1"
+
+            enable_config_values "$config_file" \
+              CONFIG_TMPFS_XATTR
+          }
+
+          enable_resukisu_kpm_configs() {
+            local config_file="$1"
+
+            enable_config_values "$config_file" \
+              CONFIG_KPM \
+              CONFIG_KALLSYMS \
+              CONFIG_KALLSYMS_ALL
+          }
+
+          require_config_enabled() {
+            local config_file="$1"
+            local key="$2"
+
+            if ! grep -q "^${key}=y$" "$config_file"; then
+              echo "::error::Expected ${key}=y in ${config_file}, but it was not enabled."
+              grep -n "${key}" "$config_file" || true
+              exit 1
+            fi
+          }
+
+          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin"
+          export PATH="${CLANG_ROOT}:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export LLVM=1
+          export LLVM_IAS=1
+          export CCACHE_DIR="${GITHUB_WORKSPACE}/.ccache"
+          export CCACHE_BASEDIR="${GITHUB_WORKSPACE}"
+          export CCACHE_NOHASHDIR=true
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=2G
+          mkdir -p "${CCACHE_DIR}"
+          export CC="ccache ${CLANG_ROOT}/clang"
+          export CXX="ccache ${CLANG_ROOT}/clang++"
+          export HOSTCC="ccache ${CLANG_ROOT}/clang"
+          export HOSTCXX="ccache ${CLANG_ROOT}/clang++"
+          export LD="${CLANG_ROOT}/ld.lld"
+          export AR="${CLANG_ROOT}/llvm-ar"
+          export NM="${CLANG_ROOT}/llvm-nm"
+          export OBJCOPY="${CLANG_ROOT}/llvm-objcopy"
+          export OBJDUMP="${CLANG_ROOT}/llvm-objdump"
+          export STRIP="${CLANG_ROOT}/llvm-strip"
+
+          cd "${SOC}"
+
+          case "${{ inputs.ksu_type }}" in
+            "None")
+              ;;
+            "Official-KernelSU")
+              curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+              ;;
+            "KowSU")
+              curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs "https://raw.githubusercontent.com/KOWX712/KernelSU/main/kernel/setup.sh" | bash -s master
+              ;;
+            "KernelSU-Next")
+              setup_kernelsu_next dev
+              ;;
+            "KernelSU-Next-with-susfs")
+              setup_kernelsu_repo "rifsxd" "KernelSU-Next" "next-susfs"
+              ;;
+            "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-KPM")
+              curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
+              ;;
+            *)
+              echo "Unsupported ksu_type: ${{ inputs.ksu_type }}"
+              exit 1
+              ;;
+          esac
+
+          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+            KSU_DRIVER_DIR="$(detect_kernelsu_driver_dir)" || {
+              echo "::error::drivers directory not found before applying susfs"
+              exit 1
+            }
+            KSU_KERNEL_DIR="$(readlink -f "${KSU_DRIVER_DIR}/kernelsu")"
+            KSU_REPO_DIR="$(dirname "${KSU_KERNEL_DIR}")"
+
+            SUSFS_REF="gki-android13-5.15"
+            git clone --depth=1 --single-branch --no-tags -b "$SUSFS_REF" https://gitlab.com/simonpunk/susfs4ksu.git susfs
+            cd susfs
+            cp ./kernel_patches/50_add_susfs_in_gki-android13-5.15.patch ..
+            cp ./kernel_patches/fs/* ../fs/
+            cp ./kernel_patches/include/linux/* ../include/linux/
+            cd ..
+
+            if [[ "${{ inputs.ksu_type }}" == "KernelSU-Next-with-susfs" ]]; then
+              require_kernelsu_susfs_support "${KSU_KERNEL_DIR}"
+            else
+              cp ./susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch "${KSU_REPO_DIR}/"
+              mkdir -p "${KSU_KERNEL_DIR}/include/linux"
+              cp ./susfs/kernel_patches/include/linux/* "${KSU_KERNEL_DIR}/include/linux/"
+              patch_kernelsu_for_susfs "${KSU_REPO_DIR}" "${KSU_KERNEL_DIR}"
+            fi
+
+            test -f include/linux/susfs_def.h || {
+              echo "::error::susfs_def.h was not copied into include/linux from $SUSFS_REF"
+              find include/linux -maxdepth 1 -type f -name 'susfs*' -print || true
+              exit 1
+            }
+
+            if [[ "${{ inputs.ksu_type }}" != "KernelSU-Next-with-susfs" ]]; then
+              test -f "${KSU_KERNEL_DIR}/include/linux/susfs_def.h" || {
+                echo "::error::susfs_def.h was not copied into ${KSU_KERNEL_DIR}/include/linux from $SUSFS_REF"
+                find "${KSU_KERNEL_DIR}/include/linux" -maxdepth 1 -type f -name 'susfs*' -print || true
+                exit 1
+              }
+            fi
+
+            if ! patch -p1 < 50_add_susfs_in_gki-android13-5.15.patch; then
+              echo "[!] susfs patch reported conflicts, checking for known task_mmu.c drift..."
+
+              reject_files="$(find . -name "*.rej" | sort)"
+              reject_count="$(printf '%s\n' "$reject_files" | sed '/^$/d' | wc -l)"
+
+              if [[ "$reject_count" -eq 1 ]] && [[ "$reject_files" == "./fs/proc/task_mmu.c.rej" ]] && grep -q 'susfs_def.h' ./fs/proc/task_mmu.c.rej; then
+                apply_susfs_task_mmu_fix
+                rm -f ./fs/proc/task_mmu.c.rej
+                echo "[+] Resolved known susfs task_mmu.c patch drift."
+              else
+                echo "==== PATCH FAILED ===="
+                echo "==== REJECT FILES ===="
+                find . -name "*.rej" -print -exec sh -c 'echo "---- $1 ----"; cat "$1"' _ {} \;
+                exit 1
+              fi
+            fi
+
+            patch_susfs_kernelsu_layout
+
+            enable_susfs_configs arch/arm64/configs/gki_defconfig
+          fi
+
+          touch .scmversion
+
+          if [[ "${{ inputs.ksu_type }}" != "None" ]]; then
+            enable_ksu_common_configs arch/arm64/configs/gki_defconfig
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+            enable_resukisu_kpm_configs arch/arm64/configs/gki_defconfig
+          fi
+
+          make O=out gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config
+
+          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+            enable_susfs_configs out/.config
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" != "None" ]]; then
+            enable_ksu_common_configs out/.config
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+            enable_resukisu_kpm_configs out/.config
+          fi
+
+          make O=out olddefconfig
+
+          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+            require_config_enabled out/.config CONFIG_KSU_SUSFS
+            echo "==== SUSFS CONFIG SNAPSHOT ===="
+            grep -E '^CONFIG_KSU_SUSFS|^CONFIG_TMPFS_XATTR=' out/.config || true
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+            require_config_enabled out/.config CONFIG_KPM
+            require_config_enabled out/.config CONFIG_KALLSYMS
+            require_config_enabled out/.config CONFIG_KALLSYMS_ALL
+            echo "==== RESUKISU KPM CONFIG SNAPSHOT ===="
+            grep -E '^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' out/.config || true
+          fi
+
+          ccache -z || true
+
+          make -j"$(nproc)" O=out Image 2>&1 | tee build.log || {
+            ccache -sv || true
+            echo "==== BUILD ERROR SUMMARY ===="
+            grep -nE ' error:|undefined reference|No rule to make target|fatal error:' build.log | tail -n 50 || true
+            echo "==== BUILD FAILED (last 200 lines) ===="
+            tail -n 200 build.log || true
+            exit 1
+          }
+
+          ccache -sv || true
+          test -f out/arch/arm64/boot/Image
+
+      - name: Make AnyKernel3
+        run: |
+          set -euo pipefail
+
+          ZIP_NAME="${{ env.SOC }}_${{ inputs.ksu_type }}_${BUILD_TIMESTAMP}"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+
+          git clone --depth=1 --single-branch --no-tags https://github.com/Kernel-SU/AnyKernel3.git
+          cp "${SOC}/out/arch/arm64/boot/Image" AnyKernel3/Image
+
+          cd AnyKernel3
+          zip -r9 "../${ZIP_NAME}.zip" . -x .git/\* .github/\*
+
+          test -f "../${ZIP_NAME}.zip"
+
+      - name: Create GitHub Release
+        run: |
+          set -euo pipefail
+
+          REL_NAME="${SOC}_${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}_${{ inputs.ksu_type }}_${BUILD_TIMESTAMP}"
+          ZIP_FILE="${GITHUB_WORKSPACE}/${ZIP_NAME}.zip"
+          IMAGE_FILE="${GITHUB_WORKSPACE}/${SOC}/out/arch/arm64/boot/Image"
+
+          test -f "${ZIP_FILE}"
+          test -f "${IMAGE_FILE}"
+
+          gh release create "$REL_NAME" \
+            --title "$REL_NAME" \
+            --notes "" \
+            "$ZIP_FILE" \
+            "$IMAGE_FILE"
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ env.SOC }}-${{ inputs.kernel_source }}-${{ inputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
+          if-no-files-found: ignore
+          path: |
+            ${{ github.workspace }}/${{ env.SOC }}/build.log
+            ${{ github.workspace }}/${{ env.SOC }}/out/.config
+            ${{ github.workspace }}/${{ env.SOC }}/out/arch/arm64/boot/Image
+            ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip
+
+      - name: Save ccache
+        if: always() && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
