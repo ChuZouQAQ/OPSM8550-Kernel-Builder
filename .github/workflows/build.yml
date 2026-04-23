@@ -29,14 +29,13 @@ on:
         type: string
         default: ""
       ksu_type:
-        description: KernelSU Version
+        description: KernelSU Variant (supported options only)
         required: true
         type: choice
         options:
           - None
           - Official-KernelSU
           - KernelSU-Next
-          - KernelSU-Next-with-susfs
           - KowSU
           - ReSukiSU
           - ReSukiSU-with-susfs
@@ -112,14 +111,6 @@ jobs:
               exit 1
               ;;
           esac
-
-          if [[ "${{ inputs.ksu_type }}" == "KernelSU-Next-with-susfs" ]]; then
-            echo "::error::KernelSU-Next-with-susfs is temporarily disabled."
-            echo "::error::As of 2026-04-23, the previously documented upstream entry points are inconsistent:"
-            echo "::error::the raw next-susfs setup URL returns 404 in GitHub Actions and the rifsxd/KernelSU-Next repo does not expose a cloneable next-susfs branch."
-            echo "::error::Please use KernelSU-Next or another supported option until a known-good upstream ref is pinned."
-            exit 1
-          fi
 
       - name: Set build metadata
         run: |
@@ -330,21 +321,6 @@ jobs:
             }
           }
 
-          require_kernelsu_susfs_support() {
-            local ksu_dir="$1"
-            local kconfig_file="${ksu_dir}/Kconfig"
-
-            test -f "$kconfig_file" || {
-              echo "::error::KernelSU Kconfig not found at $kconfig_file"
-              exit 1
-            }
-
-            grep -q 'KSU_SUSFS' "$kconfig_file" || {
-              echo "::error::KernelSU tree at $ksu_dir does not expose KSU_SUSFS in Kconfig"
-              exit 1
-            }
-          }
-
           setup_kernelsu_repo() {
             local owner="$1"
             local repo="$2"
@@ -515,9 +491,6 @@ jobs:
             "KernelSU-Next")
               setup_kernelsu_next dev
               ;;
-            "KernelSU-Next-with-susfs")
-              setup_kernelsu_repo "rifsxd" "KernelSU-Next" "next-susfs"
-              ;;
             "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-KPM")
               curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
               ;;
@@ -543,14 +516,10 @@ jobs:
             cp ./kernel_patches/include/linux/* ../include/linux/
             cd ..
 
-            if [[ "${{ inputs.ksu_type }}" == "KernelSU-Next-with-susfs" ]]; then
-              require_kernelsu_susfs_support "${KSU_KERNEL_DIR}"
-            else
-              cp ./susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch "${KSU_REPO_DIR}/"
-              mkdir -p "${KSU_KERNEL_DIR}/include/linux"
-              cp ./susfs/kernel_patches/include/linux/* "${KSU_KERNEL_DIR}/include/linux/"
-              patch_kernelsu_for_susfs "${KSU_REPO_DIR}" "${KSU_KERNEL_DIR}"
-            fi
+            cp ./susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch "${KSU_REPO_DIR}/"
+            mkdir -p "${KSU_KERNEL_DIR}/include/linux"
+            cp ./susfs/kernel_patches/include/linux/* "${KSU_KERNEL_DIR}/include/linux/"
+            patch_kernelsu_for_susfs "${KSU_REPO_DIR}" "${KSU_KERNEL_DIR}"
 
             test -f include/linux/susfs_def.h || {
               echo "::error::susfs_def.h was not copied into include/linux from $SUSFS_REF"
@@ -558,13 +527,11 @@ jobs:
               exit 1
             }
 
-            if [[ "${{ inputs.ksu_type }}" != "KernelSU-Next-with-susfs" ]]; then
-              test -f "${KSU_KERNEL_DIR}/include/linux/susfs_def.h" || {
-                echo "::error::susfs_def.h was not copied into ${KSU_KERNEL_DIR}/include/linux from $SUSFS_REF"
-                find "${KSU_KERNEL_DIR}/include/linux" -maxdepth 1 -type f -name 'susfs*' -print || true
-                exit 1
-              }
-            fi
+            test -f "${KSU_KERNEL_DIR}/include/linux/susfs_def.h" || {
+              echo "::error::susfs_def.h was not copied into ${KSU_KERNEL_DIR}/include/linux from $SUSFS_REF"
+              find "${KSU_KERNEL_DIR}/include/linux" -maxdepth 1 -type f -name 'susfs*' -print || true
+              exit 1
+            }
 
             if ! patch -p1 < 50_add_susfs_in_gki-android13-5.15.patch; then
               echo "[!] susfs patch reported conflicts, checking for known task_mmu.c drift..."

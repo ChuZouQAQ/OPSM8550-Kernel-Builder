@@ -52,7 +52,7 @@ https://github.com/<kernel_source>/android_kernel_oneplus_sm8550-modules.git
 
 Notes:
 
-- `KernelSU-Next-with-susfs` is disabled in the workflow.
+- `KernelSU-Next-with-susfs` is intentionally not exposed in the workflow input list.
 - As documented in the workflow on April 23, 2026, the upstream entry points for that option were not stable: the previously used raw setup URL returned `404` in GitHub Actions, and the referenced repository did not expose a cloneable `next-susfs` branch.
 
 ## Workflow Location
