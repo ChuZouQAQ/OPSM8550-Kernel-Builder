@@ -997,6 +997,8 @@ jobs:
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
           git clone --depth=1 --single-branch --no-tags https://github.com/Kernel-SU/AnyKernel3.git
+          sed -i 's/kernel.string=KernelSU by KernelSU Developers/kernel.string=KernelSU by TG@AzusaMyo/' AnyKernel3/anykernel.sh
+          grep -q 'kernel.string=KernelSU by TG@AzusaMyo' AnyKernel3/anykernel.sh
           cp "${SOC}/out/arch/arm64/boot/Image" AnyKernel3/Image
 
           cd AnyKernel3
