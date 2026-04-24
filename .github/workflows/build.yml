@@ -596,6 +596,51 @@ jobs:
             }
           }
 
+          patch_resukisu_susfs_runtime_compat() {
+            local ksu_kernel_dir="$1"
+            local runtime_file="${ksu_kernel_dir}/runtime/ksud_integration.c"
+
+            if [[ ! -f "$runtime_file" ]]; then
+              return 0
+            fi
+
+            if ! grep -q 'CONFIG_KSU_SUSFS' "$runtime_file"; then
+              return 0
+            fi
+
+            sed -i \
+              -e 's/^extern struct static_key_false ksu_init_rc_hook_key_false;$/extern struct static_key_true ksu_is_init_rc_hook_enabled;/' \
+              -e 's/^extern struct static_key_false ksu_input_hook_key_false;$/extern struct static_key_true ksu_is_input_hook_enabled;/' \
+              -e 's/^#define ksu_init_rc_hook ksu_init_rc_hook_key_false$/#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled/' \
+              -e 's/^#define ksu_input_hook ksu_input_hook_key_false$/#define ksu_input_hook ksu_is_input_hook_enabled/' \
+              "$runtime_file"
+
+            insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);"
+            insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);"
+            insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "#define ksu_init_rc_hook_key_false ksu_is_init_rc_hook_enabled"
+            insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "#define ksu_input_hook_key_false ksu_is_input_hook_enabled"
+
+            grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);$' "$runtime_file" || {
+              echo "::error::Failed to inject ksu_is_init_rc_hook_enabled compatibility into ${runtime_file}"
+              exit 1
+            }
+
+            grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);$' "$runtime_file" || {
+              echo "::error::Failed to inject ksu_is_input_hook_enabled compatibility into ${runtime_file}"
+              exit 1
+            }
+
+            grep -q '^#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" || {
+              echo "::error::Failed to retarget ksu_init_rc_hook to the susfs static key in ${runtime_file}"
+              exit 1
+            }
+
+            grep -q '^#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" || {
+              echo "::error::Failed to retarget ksu_input_hook to the susfs static key in ${runtime_file}"
+              exit 1
+            }
+          }
+
           setup_kernelsu_repo() {
             local owner="$1"
             local repo="$2"
@@ -754,6 +799,7 @@ jobs:
 
           verify_susfs_source_integration() {
             local ksu_kernel_dir="$1"
+            local runtime_file="${ksu_kernel_dir}/runtime/ksud_integration.c"
 
             test -f fs/susfs.c || {
               echo "::error::fs/susfs.c is missing after applying susfs patches."
@@ -785,6 +831,33 @@ jobs:
               exit 1
             }
 
+            if [[ "$KSU_TYPE" == ReSukiSU* ]]; then
+              test -f "$runtime_file" || {
+                echo "::error::ReSukiSU runtime file is missing at ${runtime_file}"
+                exit 1
+              }
+
+              grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);$' "$runtime_file" || {
+                echo "::error::ReSukiSU runtime compat is missing ksu_is_init_rc_hook_enabled, so susfs builds will fail or silently fall back."
+                exit 1
+              }
+
+              grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);$' "$runtime_file" || {
+                echo "::error::ReSukiSU runtime compat is missing ksu_is_input_hook_enabled, so susfs builds will fail or silently fall back."
+                exit 1
+              }
+
+              grep -q '^#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" || {
+                echo "::error::ReSukiSU runtime compat is not pointing init_rc hook to the susfs static key."
+                exit 1
+              }
+
+              grep -q '^#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" || {
+                echo "::error::ReSukiSU runtime compat is not pointing input hook to the susfs static key."
+                exit 1
+              }
+            fi
+
             {
               echo "==== SUSFS SOURCE PROOF ===="
               echo "kernel_branch=${KERNEL_BRANCH}"
@@ -793,6 +866,9 @@ jobs:
               grep -Fn 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || true
               grep -n 'ksu_handle_sys_reboot' kernel/reboot.c | head -n 5 || true
               grep -R -n 'CMD_SUSFS_SHOW_VERSION' "$ksu_kernel_dir" | head -n 10 || true
+              if [[ -f "$runtime_file" ]]; then
+                grep -nE 'ksu_is_init_rc_hook_enabled|ksu_is_input_hook_enabled|ksu_init_rc_hook_key_false|ksu_input_hook_key_false' "$runtime_file" | head -n 20 || true
+              fi
             } | tee susfs-source-proof.txt
           }
 
@@ -921,6 +997,7 @@ jobs:
             mkdir -p "${KSU_KERNEL_DIR}/include/linux"
             cp ./susfs/kernel_patches/include/linux/* "${KSU_KERNEL_DIR}/include/linux/"
             patch_kernelsu_for_susfs "${KSU_REPO_DIR}" "${KSU_KERNEL_DIR}"
+            patch_resukisu_susfs_runtime_compat "${KSU_KERNEL_DIR}"
 
             test -f include/linux/susfs_def.h || {
               echo "::error::susfs_def.h was not copied into include/linux from $SUSFS_REF"
