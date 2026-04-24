@@ -676,6 +676,16 @@ jobs:
             done
           }
 
+          disable_config_values() {
+            local config_file="$1"
+            shift
+            local key
+
+            for key in "$@"; do
+              set_config_value "$config_file" "$key" n
+            done
+          }
+
           enable_susfs_configs() {
             local config_file="$1"
 
@@ -686,9 +696,11 @@ jobs:
               CONFIG_KSU_SUSFS_SUS_KSTAT \
               CONFIG_KSU_SUSFS_SPOOF_UNAME \
               CONFIG_KSU_SUSFS_ENABLE_LOG \
-              CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
               CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT \
               CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+
+            disable_config_values "$config_file" \
+              CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
           }
 
           enable_ksu_common_configs() {
@@ -716,6 +728,45 @@ jobs:
               grep -n "${key}" "$config_file" || true
               exit 1
             fi
+          }
+
+          require_config_disabled() {
+            local config_file="$1"
+            local key="$2"
+
+            if grep -q "^${key}=y$" "$config_file"; then
+              echo "::error::Expected ${key} to stay disabled in ${config_file}, but it is enabled."
+              grep -n "${key}" "$config_file" || true
+              exit 1
+            fi
+          }
+
+          verify_susfs_binary_presence() {
+            local symbol_hits=0
+            local string_hits=0
+
+            if [[ -f out/System.map ]]; then
+              grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map && symbol_hits=1 || true
+            fi
+
+            if [[ -f out/vmlinux ]]; then
+              strings out/vmlinux | grep -E 'susfs is initialized! version:|CMD_SUSFS_SHOW_VERSION|CONFIG_KSU_SUSFS_SUS_MOUNT' && string_hits=1 || true
+            fi
+
+            if [[ "$symbol_hits" -eq 0 && "$string_hits" -eq 0 ]]; then
+              echo "::error::susfs config flags were enabled, but no susfs signature was found in the final kernel artifacts."
+              exit 1
+            fi
+
+            {
+              echo "==== SUSFS BINARY PROOF ===="
+              if [[ -f out/System.map ]]; then
+                grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map | head -n 20 || true
+              fi
+              if [[ -f out/vmlinux ]]; then
+                strings out/vmlinux | grep -E 'susfs is initialized! version:|CMD_SUSFS_SHOW_VERSION|CONFIG_KSU_SUSFS_' | head -n 20 || true
+              fi
+            } | tee susfs-proof.txt
           }
 
           CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin"
@@ -847,6 +898,7 @@ jobs:
 
           if [[ "$KSU_TYPE" == *susfs ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
+            require_config_disabled out/.config CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
             echo "==== SUSFS CONFIG SNAPSHOT ===="
             grep -E '^CONFIG_KSU_SUSFS|^CONFIG_TMPFS_XATTR=' out/.config || true
           fi
@@ -869,6 +921,10 @@ jobs:
             tail -n 200 build.log || true
             exit 1
           }
+
+          if [[ "$KSU_TYPE" == *susfs ]]; then
+            verify_susfs_binary_presence
+          fi
 
           ccache -sv || true
           test -f out/arch/arm64/boot/Image
@@ -913,6 +969,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/build.log
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/.config
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/arch/arm64/boot/Image
             ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip

@@ -117,6 +117,7 @@ Available choices:
 - `SM8450` -> `gki-android13-5.10`
 - `SM8550` -> `gki-android13-5.15`
 - `SM8650` -> `gki-android14-6.1`
+- The workflow now keeps `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS` disabled by default so `susfs` is easier to verify in managers and build artifacts.
 - This workflow requires both the main kernel repository and the matching `-modules` repository to have the same branch.
 
 ## Usage
@@ -167,6 +168,7 @@ Successful builds produce:
 The workflow also uploads:
 
 - `build.log`
+- `susfs-proof.txt` when a `susfs` preset is used
 - final `out/.config`
 - built `Image`
 - final zip package
