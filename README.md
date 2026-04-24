@@ -178,6 +178,8 @@ The workflow also uploads:
 - built `Image`
 - final zip package
 
+The same `susfs` diagnostics are also copied into the GitHub Actions job summary so you can inspect them without downloading artifacts first.
+
 ## Source Mapping Used by the Workflow
 
 The workflow resolves friendly source choices to the actual upstream org automatically.

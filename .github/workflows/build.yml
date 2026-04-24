@@ -1054,6 +1054,54 @@ jobs:
             "$ZIP_FILE" \
             "$IMAGE_FILE"
 
+      - name: Publish susfs diagnostics
+        if: always()
+        run: |
+          set -euo pipefail
+
+          {
+            echo "### susfs diagnostics"
+            echo
+            echo "- Root solution: ${KSU_TYPE}"
+            echo "- Branch: ${KERNEL_BRANCH}"
+            if [[ -n "${SUSFS_REF:-}" ]]; then
+              echo "- susfs ref: ${SUSFS_REF}"
+            fi
+            echo
+
+            if [[ -f "${SOC}/out/.config" ]]; then
+              echo '#### .config snapshot'
+              echo '```text'
+              grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' "${SOC}/out/.config" || true
+              echo '```'
+              echo
+            fi
+
+            if [[ -f "${SOC}/susfs-source-proof.txt" ]]; then
+              echo '#### susfs-source-proof.txt'
+              echo '```text'
+              cat "${SOC}/susfs-source-proof.txt"
+              echo '```'
+              echo
+            fi
+
+            if [[ -f "${SOC}/susfs-hook-proof.txt" ]]; then
+              echo '#### susfs-hook-proof.txt'
+              echo '```text'
+              cat "${SOC}/susfs-hook-proof.txt"
+              echo '```'
+              echo
+            fi
+
+            if [[ -f "${SOC}/susfs-proof.txt" ]]; then
+              echo '#### susfs-proof.txt'
+              echo '```text'
+              cat "${SOC}/susfs-proof.txt"
+              echo '```'
+              echo
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
