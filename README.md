@@ -120,6 +120,7 @@ Available choices:
 - `SM8650` -> `gki-android14-6.1`
 - The workflow now keeps `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS` disabled by default so `susfs` is easier to verify in managers and build artifacts.
 - The workflow now performs both source-level and binary-level `susfs` verification for `susfs` presets.
+- The workflow now also verifies that ReSukiSU compiled in `SUSFS_INLINE_HOOK` mode instead of falling back to tracepoint or manual hook mode.
 - This workflow requires both the main kernel repository and the matching `-modules` repository to have the same branch.
 
 ## Usage
@@ -171,6 +172,7 @@ The workflow also uploads:
 
 - `build.log`
 - `susfs-source-proof.txt` when a `susfs` preset is used
+- `susfs-hook-proof.txt` when a `susfs` preset is used
 - `susfs-proof.txt` when a `susfs` preset is used
 - final `out/.config`
 - built `Image`

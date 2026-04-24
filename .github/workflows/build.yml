@@ -827,6 +827,35 @@ jobs:
             } | tee susfs-proof.txt
           }
 
+          verify_resukisu_susfs_hook_mode() {
+            test -f build.log || {
+              echo "::error::build.log is missing, cannot verify ReSukiSU hook mode."
+              exit 1
+            }
+
+            if grep -q 'using KSU_TRACEPOINT_HOOK' build.log; then
+              echo "::error::ReSukiSU fell back to KSU_TRACEPOINT_HOOK, so the manager will not detect susfs inline mode."
+              exit 1
+            fi
+
+            if grep -q 'using KSU_MANUAL_HOOK' build.log; then
+              echo "::error::ReSukiSU fell back to KSU_MANUAL_HOOK, so this build is not the expected susfs inline mode."
+              exit 1
+            fi
+
+            grep -q 'using SUSFS_INLINE_HOOK' build.log || {
+              echo "::error::ReSukiSU did not report SUSFS_INLINE_HOOK in build.log."
+              exit 1
+            }
+
+            {
+              echo "==== RESUKISU SUSFS HOOK PROOF ===="
+              echo "kernel_branch=${KERNEL_BRANCH}"
+              echo "susfs_ref=${SUSFS_REF}"
+              grep -nE 'using SUSFS_INLINE_HOOK|using KSU_TRACEPOINT_HOOK|using KSU_MANUAL_HOOK' build.log || true
+            } | tee susfs-hook-proof.txt
+          }
+
           CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin"
           export PATH="${CLANG_ROOT}:$PATH"
           export ARCH=arm64
@@ -958,9 +987,10 @@ jobs:
 
           if [[ "$KSU_TYPE" == *susfs ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
+            require_config_disabled out/.config CONFIG_KSU_MANUAL_HOOK
             require_config_disabled out/.config CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
             echo "==== SUSFS CONFIG SNAPSHOT ===="
-            grep -E '^CONFIG_KSU_SUSFS|^CONFIG_TMPFS_XATTR=' out/.config || true
+            grep -E '^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_TMPFS_XATTR=' out/.config || true
           fi
 
           if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
@@ -983,6 +1013,7 @@ jobs:
           }
 
           if [[ "$KSU_TYPE" == *susfs ]]; then
+            verify_resukisu_susfs_hook_mode
             verify_susfs_binary_presence
           fi
 
@@ -1032,6 +1063,7 @@ jobs:
           path: |
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/build.log
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-source-proof.txt
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-hook-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/.config
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/arch/arm64/boot/Image
