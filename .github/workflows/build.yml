@@ -1,52 +1,72 @@
-name: Compile Kernel
+name: Build OnePlus Kernel
 
 on:
   workflow_dispatch:
     inputs:
-      clang_version:
-        description: Type the clang version of ur kernel
+      platform:
+        description: Which platform do you want to build for?
         required: true
         type: choice
-        default: clang-r563880c
+        default: Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
         options:
-          - clang-r416183b1 # lineage-19.1 in android12-qpr3-release
-          - clang-r450784d  # lineage-20.0 in android13-qpr3-release
-          - clang-r487747c  # lineage-21.0 in android14-qpr3-release
-          - clang-r536225   # lineage-22.2 in android15-qpr2-release
-          - clang-r547379   # lineage-23.0
-          - clang-r563880c  # lineage-23.2
-      kernel_source:
-        description: Kernel Source Code
+          - Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)
+          - Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
+          - Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)
+      source_choice:
+        description: Where should the kernel source come from?
         required: true
         type: choice
+        default: Recommended source for this platform
         options:
-          - LineageOS
-          - crdroidandroid
-          - OnePlus12R-development
+          - Recommended source for this platform
+          - LineageOS / community source
+          - crDroid source
+          - OnePlus 12R development source (SM8550 only)
+      branch_mode:
+        description: Choose automatically, or type your own branch name
+        required: true
+        type: choice
+        default: Use the recommended branch automatically
+        options:
+          - Use the recommended branch automatically
+          - I want to type the branch name myself
       kernel_branch:
-        description: Kernel Branch (such as lineage-23.2 or sixteen-qpr1)
-        required: true
+        description: Optional custom branch, for example lineage-23.2. Leave blank if using automatic branch selection.
+        required: false
         type: string
         default: ""
-      ksu_type:
-        description: KernelSU Variant (supported options only)
+      clang_choice:
+        description: Clang version. The recommended option is best for most users.
         required: true
         type: choice
+        default: Recommended (auto-select based on branch)
         options:
-          - None
-          - Official-KernelSU
+          - Recommended (auto-select based on branch)
+          - clang-r547379 (older Android 16 / LineageOS 23.0 era)
+          - clang-r536225 (Android 15 / LineageOS 22.2 era)
+          - clang-r487747c (Android 14 / LineageOS 21 era)
+          - clang-r450784d (Android 13 / LineageOS 20 era)
+          - clang-r416183b1 (Android 12 / LineageOS 19.1 era)
+      root_solution:
+        description: Root / KernelSU add-on
+        required: true
+        type: choice
+        default: No root changes
+        options:
+          - No root changes
+          - Official KernelSU
           - KernelSU-Next
           - KowSU
           - ReSukiSU
-          - ReSukiSU-with-susfs
-          - ReSukiSU-with-susfs-KPM
+          - ReSukiSU + susfs
+          - ReSukiSU + susfs + KPM
 
 jobs:
   Kernel_CI:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     concurrency:
-      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}-${{ inputs.ksu_type }}-${{ inputs.clang_version }}
+      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.source_choice }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ inputs.root_solution }}-${{ inputs.clang_choice }}
       cancel-in-progress: true
 
     permissions:
@@ -56,7 +76,6 @@ jobs:
 
     env:
       GH_TOKEN: ${{ github.token }}
-      SOC: sm8550
 
     steps:
       - name: Checkout
@@ -88,46 +107,294 @@ jobs:
             cpio \
             gcc-aarch64-linux-gnu
 
-      - name: Validate inputs
+      - name: Resolve build profile
+        id: resolve
         run: |
           set -euo pipefail
 
-          if [ -z "${{ inputs.kernel_branch }}" ]; then
-            echo "kernel_branch cannot be empty"
-            exit 1
-          fi
-
-          case "${{ inputs.kernel_source }}" in
-            LineageOS|OnePlus12R-development)
-              if [[ ! "${{ inputs.kernel_branch }}" =~ ^lineage- ]]; then
-                echo "Warning: ${{ inputs.kernel_source }} usually uses lineage-* branches"
-              fi
+          case "${{ inputs.platform }}" in
+            "Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)")
+              SOC="sm8450"
+              PLATFORM_SLUG="8gen1"
+              PLATFORM_NAME="Snapdragon 8 Gen 1"
+              BUILD_CONFIGS="vendor/waipio_GKI.config vendor/oplus/waipio_GKI.config vendor/debugfs.config"
+              RECOMMENDED_SOURCE="lineage-ovaltine-dev"
               ;;
-            crdroidandroid)
-              echo "Note: crdroidandroid branch naming may differ from LineageOS"
+            "Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)")
+              SOC="sm8550"
+              PLATFORM_SLUG="8gen2"
+              PLATFORM_NAME="Snapdragon 8 Gen 2"
+              BUILD_CONFIGS="vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config"
+              RECOMMENDED_SOURCE="LineageOS"
+              ;;
+            "Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)")
+              SOC="sm8650"
+              PLATFORM_SLUG="8gen3"
+              PLATFORM_NAME="Snapdragon 8 Gen 3"
+              BUILD_CONFIGS="vendor/pineapple_GKI.config vendor/oplus/pineapple_GKI.config"
+              RECOMMENDED_SOURCE="LineageOS"
               ;;
             *)
-              echo "Unknown kernel_source: ${{ inputs.kernel_source }}"
+              echo "::error::Unsupported platform: ${{ inputs.platform }}"
               exit 1
               ;;
           esac
 
+          case "${{ inputs.source_choice }}" in
+            "Recommended source for this platform")
+              KERNEL_SOURCE="$RECOMMENDED_SOURCE"
+              ;;
+            "LineageOS / community source")
+              case "$SOC" in
+                sm8450)
+                  KERNEL_SOURCE="lineage-ovaltine-dev"
+                  ;;
+                sm8550|sm8650)
+                  KERNEL_SOURCE="LineageOS"
+                  ;;
+              esac
+              ;;
+            "crDroid source")
+              if [[ "$SOC" == "sm8450" ]]; then
+                echo "::error::crDroid source is not configured for Snapdragon 8 Gen 1 in this workflow yet."
+                exit 1
+              fi
+              KERNEL_SOURCE="crdroidandroid"
+              ;;
+            "OnePlus 12R development source (SM8550 only)")
+              if [[ "$SOC" != "sm8550" ]]; then
+                echo "::error::OnePlus 12R development source is only available for Snapdragon 8 Gen 2 (SM8550)."
+                exit 1
+              fi
+              KERNEL_SOURCE="OnePlus12R-development"
+              ;;
+            *)
+              echo "::error::Unknown source choice: ${{ inputs.source_choice }}"
+              exit 1
+              ;;
+          esac
+
+          case "$KERNEL_SOURCE" in
+            "LineageOS")
+              SOURCE_NAME="LineageOS"
+              SOURCE_SLUG="lineageos"
+              ;;
+            "lineage-ovaltine-dev")
+              SOURCE_NAME="LineageOS community (ovaltine)"
+              SOURCE_SLUG="lineage-community"
+              ;;
+            "crdroidandroid")
+              SOURCE_NAME="crDroid"
+              SOURCE_SLUG="crdroid"
+              ;;
+            "OnePlus12R-development")
+              SOURCE_NAME="OnePlus 12R development"
+              SOURCE_SLUG="oneplus12r-dev"
+              ;;
+          esac
+
+          case "${{ inputs.clang_choice }}" in
+            "Recommended (auto-select based on branch)")
+              CLANG_VERSION=""
+              ;;
+            "clang-r547379 (older Android 16 / LineageOS 23.0 era)")
+              CLANG_VERSION="clang-r547379"
+              ;;
+            "clang-r536225 (Android 15 / LineageOS 22.2 era)")
+              CLANG_VERSION="clang-r536225"
+              ;;
+            "clang-r487747c (Android 14 / LineageOS 21 era)")
+              CLANG_VERSION="clang-r487747c"
+              ;;
+            "clang-r450784d (Android 13 / LineageOS 20 era)")
+              CLANG_VERSION="clang-r450784d"
+              ;;
+            "clang-r416183b1 (Android 12 / LineageOS 19.1 era)")
+              CLANG_VERSION="clang-r416183b1"
+              ;;
+            *)
+              echo "::error::Unknown clang choice: ${{ inputs.clang_choice }}"
+              exit 1
+              ;;
+          esac
+
+          case "${{ inputs.root_solution }}" in
+            "No root changes")
+              KSU_TYPE="None"
+              ;;
+            "Official KernelSU")
+              KSU_TYPE="Official-KernelSU"
+              ;;
+            "KernelSU-Next")
+              KSU_TYPE="KernelSU-Next"
+              ;;
+            "KowSU")
+              KSU_TYPE="KowSU"
+              ;;
+            "ReSukiSU")
+              KSU_TYPE="ReSukiSU"
+              ;;
+            "ReSukiSU + susfs")
+              KSU_TYPE="ReSukiSU-with-susfs"
+              ;;
+            "ReSukiSU + susfs + KPM")
+              KSU_TYPE="ReSukiSU-with-susfs-KPM"
+              ;;
+            *)
+              echo "::error::Unknown root solution: ${{ inputs.root_solution }}"
+              exit 1
+              ;;
+          esac
+
+          SUSFS_REF=""
+          SUSFS_PATCH_FILE=""
+
+          KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
+          MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}-modules.git"
+
+          if [[ "${{ inputs.branch_mode }}" == "Use the recommended branch automatically" ]]; then
+            KERNEL_BRANCH="$(git ls-remote --symref "$KERNEL_REPO" HEAD | awk '/^ref:/ {sub("refs/heads/","",$2); print $2; exit}')"
+
+            if [[ -z "$KERNEL_BRANCH" ]]; then
+              echo "::error::Could not detect the default branch from $KERNEL_REPO"
+              exit 1
+            fi
+          else
+            KERNEL_BRANCH="${{ inputs.kernel_branch }}"
+
+            if [[ -z "$KERNEL_BRANCH" ]]; then
+              echo "::error::Please type a branch name when using manual branch mode."
+              exit 1
+            fi
+          fi
+
+          if [[ -z "$CLANG_VERSION" ]]; then
+            case "$KERNEL_BRANCH" in
+              lineage-19.1*)
+                CLANG_VERSION="clang-r416183b1"
+                ;;
+              lineage-20*|thirteen*)
+                CLANG_VERSION="clang-r450784d"
+                ;;
+              lineage-21*|fourteen*)
+                CLANG_VERSION="clang-r487747c"
+                ;;
+              lineage-22*|fifteen*)
+                CLANG_VERSION="clang-r536225"
+                ;;
+              lineage-23.0*)
+                CLANG_VERSION="clang-r547379"
+                ;;
+              16.0|lineage-23*)
+                CLANG_VERSION="clang-r563880c"
+                ;;
+              *)
+                CLANG_VERSION="clang-r563880c"
+                echo "::warning::Could not confidently infer the best clang version for branch '$KERNEL_BRANCH'. Falling back to $CLANG_VERSION."
+                ;;
+            esac
+          fi
+
+          if [[ "$KSU_TYPE" == *susfs ]]; then
+            case "$SOC" in
+              sm8450)
+                SUSFS_REF="gki-android13-5.10"
+                ;;
+              sm8550)
+                SUSFS_REF="gki-android13-5.15"
+                ;;
+              sm8650)
+                SUSFS_REF="gki-android14-6.1"
+                ;;
+              *)
+                echo "::error::No susfs mapping is configured for platform $SOC"
+                exit 1
+                ;;
+            esac
+
+            SUSFS_PATCH_FILE="50_add_susfs_in_${SUSFS_REF}.patch"
+          fi
+
+          if ! git ls-remote --exit-code --heads "$KERNEL_REPO" "$KERNEL_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch '$KERNEL_BRANCH' was not found in $KERNEL_REPO"
+            exit 1
+          fi
+
+          if ! git ls-remote --exit-code --heads "$MODULES_REPO" "$KERNEL_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch '$KERNEL_BRANCH' was not found in $MODULES_REPO"
+            echo "::error::This workflow requires the matching modules repository for defconfig/Kconfig resolution."
+            exit 1
+          fi
+
+          case "$KERNEL_SOURCE" in
+            LineageOS|OnePlus12R-development|lineage-ovaltine-dev)
+              if [[ ! "$KERNEL_BRANCH" =~ ^lineage- ]]; then
+                echo "::warning::This source usually uses lineage-* branches, but '$KERNEL_BRANCH' was selected."
+              fi
+              ;;
+            crdroidandroid)
+              echo "Note: crDroid branch naming may differ from LineageOS."
+              ;;
+          esac
+
+          {
+            echo "SOC=$SOC"
+            echo "PLATFORM_SLUG=$PLATFORM_SLUG"
+            echo "PLATFORM_NAME=$PLATFORM_NAME"
+            echo "BUILD_CONFIGS=$BUILD_CONFIGS"
+            echo "KERNEL_SOURCE=$KERNEL_SOURCE"
+            echo "SOURCE_NAME=$SOURCE_NAME"
+            echo "SOURCE_SLUG=$SOURCE_SLUG"
+            echo "KERNEL_REPO=$KERNEL_REPO"
+            echo "MODULES_REPO=$MODULES_REPO"
+            echo "KERNEL_BRANCH=$KERNEL_BRANCH"
+            echo "CLANG_VERSION=$CLANG_VERSION"
+            echo "KSU_TYPE=$KSU_TYPE"
+            echo "SUSFS_REF=$SUSFS_REF"
+            echo "SUSFS_PATCH_FILE=$SUSFS_PATCH_FILE"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "soc=$SOC"
+            echo "platform_slug=$PLATFORM_SLUG"
+            echo "platform_name=$PLATFORM_NAME"
+            echo "kernel_source=$KERNEL_SOURCE"
+            echo "source_name=$SOURCE_NAME"
+            echo "source_slug=$SOURCE_SLUG"
+            echo "kernel_branch=$KERNEL_BRANCH"
+            echo "clang_version=$CLANG_VERSION"
+            echo "ksu_type=$KSU_TYPE"
+            echo "susfs_ref=$SUSFS_REF"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Build profile"
+            echo "- Platform: $PLATFORM_NAME ($SOC)"
+            echo "- Source: $SOURCE_NAME"
+            echo "- Branch: $KERNEL_BRANCH"
+            echo "- Clang: $CLANG_VERSION"
+            echo "- Root solution: $KSU_TYPE"
+            if [[ -n "$SUSFS_REF" ]]; then
+              echo "- susfs branch: $SUSFS_REF"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set build metadata
         run: |
           set -euo pipefail
-          SAFE_KERNEL_BRANCH="${{ inputs.kernel_branch }}"
+          SAFE_KERNEL_BRANCH="$KERNEL_BRANCH"
           SAFE_KERNEL_BRANCH="${SAFE_KERNEL_BRANCH//\//-}"
           echo "BUILD_TIMESTAMP=$(date -u +'%Y%m%d_%H%M')" >> "$GITHUB_ENV"
           echo "SAFE_KERNEL_BRANCH=${SAFE_KERNEL_BRANCH}" >> "$GITHUB_ENV"
-          echo "CCACHE_PREFIX=${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}-${{ inputs.clang_version }}" >> "$GITHUB_ENV"
-          echo "CCACHE_KEY=${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}-${{ inputs.clang_version }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+          echo "CCACHE_PREFIX=${{ runner.os }}-ccache-${SOC}-${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}" >> "$GITHUB_ENV"
+          echo "CCACHE_KEY=${{ runner.os }}-ccache-${SOC}-${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
 
       - name: Restore AOSP Clang cache
         id: clang-cache
         uses: actions/cache@v4
         with:
-          path: toolchains/${{ inputs.clang_version }}
-          key: ${{ runner.os }}-aosp-clang-${{ inputs.clang_version }}
+          path: toolchains/${{ steps.resolve.outputs.clang_version }}
+          key: ${{ runner.os }}-aosp-clang-${{ steps.resolve.outputs.clang_version }}
 
       - name: Restore ccache
         id: ccache-restore
@@ -137,25 +404,22 @@ jobs:
           key: ${{ env.CCACHE_KEY }}
           restore-keys: |
             ${{ env.CCACHE_PREFIX }}-
-            ${{ runner.os }}-ccache-${{ inputs.kernel_source }}-${{ inputs.clang_version }}-
-            ${{ runner.os }}-ccache-${{ inputs.clang_version }}-
+            ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-
+            ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-
 
       - name: Clone Kernel Source
         run: |
           set -euo pipefail
 
-          KERNEL_REPO="https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}.git"
-          MODULES_REPO="https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}-modules.git"
-
           echo "Cloning kernel repo: $KERNEL_REPO"
-          git clone --depth=1 --single-branch --no-tags -b "${{ inputs.kernel_branch }}" "$KERNEL_REPO" "${SOC}" || {
-            echo "::error::Failed to clone kernel repo for branch '${{ inputs.kernel_branch }}': $KERNEL_REPO"
+          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$KERNEL_REPO" "${SOC}" || {
+            echo "::error::Failed to clone kernel repo for branch '$KERNEL_BRANCH': $KERNEL_REPO"
             exit 1
           }
 
           echo "Cloning modules repo: $MODULES_REPO"
-          git clone --depth=1 --single-branch --no-tags -b "${{ inputs.kernel_branch }}" "$MODULES_REPO" "${SOC}-modules" || {
-            echo "::error::Failed to clone modules repo for branch '${{ inputs.kernel_branch }}': $MODULES_REPO"
+          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$MODULES_REPO" "${SOC}-modules" || {
+            echo "::error::Failed to clone modules repo for branch '$KERNEL_BRANCH': $MODULES_REPO"
             echo "::error::This kernel tree expects a sibling '${SOC}-modules' repo during defconfig/Kconfig resolution."
             exit 1
           }
@@ -165,7 +429,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ inputs.clang_version }}" in
+          case "$CLANG_VERSION" in
             "clang-r416183b1")
               URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-qpr3-release/clang-r416183b1.tar.gz"
               ;;
@@ -185,20 +449,20 @@ jobs:
               URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android16-qpr2-release/clang-r563880c.tar.gz"
               ;;
             *)
-              echo "Unsupported clang version: ${{ inputs.clang_version }}"
+              echo "Unsupported clang version: $CLANG_VERSION"
               exit 1
               ;;
           esac
 
-          mkdir -p "toolchains/${{ inputs.clang_version }}"
-          curl --retry 5 --retry-delay 3 --retry-all-errors -fL "$URL" -o "${{ inputs.clang_version }}.tar.gz"
-          tar -xf "${{ inputs.clang_version }}.tar.gz" -C "toolchains/${{ inputs.clang_version }}"
-          rm -f "${{ inputs.clang_version }}.tar.gz"
+          mkdir -p "toolchains/${CLANG_VERSION}"
+          curl --retry 5 --retry-delay 3 --retry-all-errors -fL "$URL" -o "${CLANG_VERSION}.tar.gz"
+          tar -xf "${CLANG_VERSION}.tar.gz" -C "toolchains/${CLANG_VERSION}"
+          rm -f "${CLANG_VERSION}.tar.gz"
 
       - name: Validate AOSP Clang
         run: |
           set -euo pipefail
-          test -x "${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin/clang"
+          test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang"
 
       - name: Compile Kernel
         run: |
@@ -454,7 +718,7 @@ jobs:
             fi
           }
 
-          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin"
+          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin"
           export PATH="${CLANG_ROOT}:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
@@ -479,7 +743,7 @@ jobs:
 
           cd "${SOC}"
 
-          case "${{ inputs.ksu_type }}" in
+          case "$KSU_TYPE" in
             "None")
               ;;
             "Official-KernelSU")
@@ -495,12 +759,12 @@ jobs:
               curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
               ;;
             *)
-              echo "Unsupported ksu_type: ${{ inputs.ksu_type }}"
+              echo "Unsupported ksu_type: $KSU_TYPE"
               exit 1
               ;;
           esac
 
-          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs ]]; then
             KSU_DRIVER_DIR="$(detect_kernelsu_driver_dir)" || {
               echo "::error::drivers directory not found before applying susfs"
               exit 1
@@ -508,10 +772,9 @@ jobs:
             KSU_KERNEL_DIR="$(readlink -f "${KSU_DRIVER_DIR}/kernelsu")"
             KSU_REPO_DIR="$(dirname "${KSU_KERNEL_DIR}")"
 
-            SUSFS_REF="gki-android13-5.15"
             git clone --depth=1 --single-branch --no-tags -b "$SUSFS_REF" https://gitlab.com/simonpunk/susfs4ksu.git susfs
             cd susfs
-            cp ./kernel_patches/50_add_susfs_in_gki-android13-5.15.patch ..
+            cp "./kernel_patches/${SUSFS_PATCH_FILE}" ..
             cp ./kernel_patches/fs/* ../fs/
             cp ./kernel_patches/include/linux/* ../include/linux/
             cd ..
@@ -533,7 +796,7 @@ jobs:
               exit 1
             }
 
-            if ! patch -p1 < 50_add_susfs_in_gki-android13-5.15.patch; then
+            if ! patch -p1 < "${SUSFS_PATCH_FILE}"; then
               echo "[!] susfs patch reported conflicts, checking for known task_mmu.c drift..."
 
               reject_files="$(find . -name "*.rej" | sort)"
@@ -558,37 +821,37 @@ jobs:
 
           touch .scmversion
 
-          if [[ "${{ inputs.ksu_type }}" != "None" ]]; then
+          if [[ "$KSU_TYPE" != "None" ]]; then
             enable_ksu_common_configs arch/arm64/configs/gki_defconfig
           fi
 
-          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+          if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
             enable_resukisu_kpm_configs arch/arm64/configs/gki_defconfig
           fi
 
-          make O=out gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config
+          make O=out gki_defconfig ${BUILD_CONFIGS}
 
-          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs ]]; then
             enable_susfs_configs out/.config
           fi
 
-          if [[ "${{ inputs.ksu_type }}" != "None" ]]; then
+          if [[ "$KSU_TYPE" != "None" ]]; then
             enable_ksu_common_configs out/.config
           fi
 
-          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+          if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
             enable_resukisu_kpm_configs out/.config
           fi
 
           make O=out olddefconfig
 
-          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
             echo "==== SUSFS CONFIG SNAPSHOT ===="
             grep -E '^CONFIG_KSU_SUSFS|^CONFIG_TMPFS_XATTR=' out/.config || true
           fi
 
-          if [[ "${{ inputs.ksu_type }}" == "ReSukiSU-with-susfs-KPM" ]]; then
+          if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
             require_config_enabled out/.config CONFIG_KPM
             require_config_enabled out/.config CONFIG_KALLSYMS
             require_config_enabled out/.config CONFIG_KALLSYMS_ALL
@@ -614,7 +877,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ZIP_NAME="${{ env.SOC }}_${{ inputs.ksu_type }}_${BUILD_TIMESTAMP}"
+          ZIP_NAME="${SOC}_${KSU_TYPE}_${BUILD_TIMESTAMP}"
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
           git clone --depth=1 --single-branch --no-tags https://github.com/Kernel-SU/AnyKernel3.git
@@ -629,7 +892,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          REL_NAME="${SOC}_${{ inputs.kernel_source }}-${SAFE_KERNEL_BRANCH}_${{ inputs.ksu_type }}_${BUILD_TIMESTAMP}"
+          REL_NAME="${SOC}_${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}_${KSU_TYPE}_${BUILD_TIMESTAMP}"
           ZIP_FILE="${GITHUB_WORKSPACE}/${ZIP_NAME}.zip"
           IMAGE_FILE="${GITHUB_WORKSPACE}/${SOC}/out/arch/arm64/boot/Image"
 
@@ -646,12 +909,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ env.SOC }}-${{ inputs.kernel_source }}-${{ inputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
+          name: build-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-${{ steps.resolve.outputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
           if-no-files-found: ignore
           path: |
-            ${{ github.workspace }}/${{ env.SOC }}/build.log
-            ${{ github.workspace }}/${{ env.SOC }}/out/.config
-            ${{ github.workspace }}/${{ env.SOC }}/out/arch/arm64/boot/Image
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/build.log
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/.config
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/arch/arm64/boot/Image
             ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip
 
       - name: Save ccache

@@ -1,143 +1,185 @@
-# kernel_opsm8550
+# OnePlus Snapdragon Kernel Builder
 
-A GitHub Actions workflow repository for building OnePlus `sm8550` kernels.
+A GitHub Actions workflow repository for building OnePlus kernels for Snapdragon 8 Gen 1, 8 Gen 2, and 8 Gen 3 devices.
 
-This repository does not include the kernel source itself. Its main purpose is to let you manually trigger CI, pull the kernel source and matching modules repository from a selected upstream, build with the chosen AOSP Clang toolchain and KernelSU variant, package the result, and publish the artifacts automatically.
+This repository does not ship kernel source code. Instead, it gives you a beginner-friendly GitHub Actions form that can:
+
+- choose the target platform
+- pull kernel source and matching modules from supported upstream repositories
+- auto-select a suitable branch and Clang version for most common cases
+- apply the selected KernelSU variant
+- build `Image`
+- package an `AnyKernel3` flashable zip
+- publish artifacts to GitHub Releases and workflow artifacts
+
+## Supported Platforms
+
+### Snapdragon 8 Gen 1
+
+- SoC: `sm8450`
+- Typical devices: OnePlus 10T / Ace Pro
+- Recommended source in this workflow: `lineage-ovaltine-dev`
+- Kernel config preset: `vendor/waipio_GKI.config` + `vendor/oplus/waipio_GKI.config`
+
+### Snapdragon 8 Gen 2
+
+- SoC: `sm8550`
+- Typical devices: OnePlus 11 / 12R
+- Recommended source in this workflow: `LineageOS`
+- Also supports:
+  - `crDroid`
+  - `OnePlus 12R development`
+- Kernel config preset: `vendor/kalama_GKI.config` + `vendor/oplus/kalama_GKI.config`
+
+### Snapdragon 8 Gen 3
+
+- SoC: `sm8650`
+- Typical devices: OnePlus 12
+- Recommended source in this workflow: `LineageOS`
+- Also supports:
+  - `crDroid`
+- Kernel config preset: `vendor/pineapple_GKI.config` + `vendor/oplus/pineapple_GKI.config`
 
 ## Features
 
-- Pulls `android_kernel_oneplus_sm8550` from multiple upstream repositories
-- Automatically pulls the matching `android_kernel_oneplus_sm8550-modules` repository
+- Supports multiple OnePlus Snapdragon platforms in one workflow
+- Auto-resolves the real repo owner, SoC, branch, and build config from simpler UI choices
 - Supports multiple AOSP Clang toolchain versions
+- Auto-selects a recommended Clang version based on the resolved branch
 - Uses `ccache` to speed up repeated builds
 - Supports `KernelSU`, `KernelSU-Next`, `KowSU`, and `ReSukiSU`
-- Supports selected `susfs` combinations
-- Generates both `Image` and an `AnyKernel3` flashable zip
+- Supports selected `susfs` presets
+- Builds both raw `Image` and an `AnyKernel3` flashable zip
 - Creates a GitHub Release automatically
-- Uploads build logs and key outputs as workflow artifacts
+- Uploads build logs, `.config`, `Image`, and zip files as workflow artifacts
 
-## Currently Supported
+## Action Inputs
 
-### Kernel Source
+The workflow is designed so that people who do not know the repo layout can still use it safely.
 
-- `LineageOS`
-- `crdroidandroid`
-- `OnePlus12R-development`
+### Platform
 
-The upstream URLs follow this format:
+Choose the chipset and typical device family:
 
-```text
-https://github.com/<kernel_source>/android_kernel_oneplus_sm8550.git
-https://github.com/<kernel_source>/android_kernel_oneplus_sm8550-modules.git
-```
+- `Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)`
+- `Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)`
+- `Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)`
 
-### Clang Versions
+### Source
 
-- `clang-r416183b1`
-- `clang-r450784d`
-- `clang-r487747c`
-- `clang-r536225`
-- `clang-r547379`
-- `clang-r563880c`
+Choose where the kernel source should come from:
 
-### KernelSU Variants
+- `Recommended source for this platform`
+- `LineageOS / community source`
+- `crDroid source`
+- `OnePlus 12R development source (SM8550 only)`
 
-- `None`
-- `Official-KernelSU`
+The workflow validates unsupported combinations automatically.
+
+### Branch Mode
+
+- `Use the recommended branch automatically`
+- `I want to type the branch name myself`
+
+If you choose automatic mode, the workflow reads the upstream repository default branch for you.
+
+If you choose manual mode, fill in `kernel_branch` yourself, for example:
+
+- `lineage-23.2`
+- `lineage-23.0`
+- `16.0`
+
+### Clang Version
+
+You can either:
+
+- keep `Recommended (auto-select based on branch)`
+- or force a specific Clang version manually
+
+The automatic mode maps common branch names to the matching Clang generation whenever possible.
+
+### Root Solution
+
+Available choices:
+
+- `No root changes`
+- `Official KernelSU`
 - `KernelSU-Next`
 - `KowSU`
 - `ReSukiSU`
-- `ReSukiSU-with-susfs`
-- `ReSukiSU-with-susfs-KPM`
+- `ReSukiSU + susfs`
+- `ReSukiSU + susfs + KPM`
 
-Notes:
+## Important Notes
 
-- `KernelSU-Next-with-susfs` is intentionally not exposed in the workflow input list.
-- As documented in the workflow on April 23, 2026, the upstream entry points for that option were not stable: the previously used raw setup URL returned `404` in GitHub Actions, and the referenced repository did not expose a cloneable `next-susfs` branch.
-
-## Workflow Location
-
-Main workflow file:
-
-- [.github/workflows/build.yml](./.github/workflows/build.yml)
+- `KernelSU-Next-with-susfs` is intentionally not exposed in the workflow.
+- `ReSukiSU + susfs` and `ReSukiSU + susfs + KPM` now use platform-specific `susfs4ksu` branches automatically:
+- `SM8450` -> `gki-android13-5.10`
+- `SM8550` -> `gki-android13-5.15`
+- `SM8650` -> `gki-android14-6.1`
+- This workflow requires both the main kernel repository and the matching `-modules` repository to have the same branch.
 
 ## Usage
 
 ### 1. Fork This Repository
 
-Fork this repository to your own GitHub account first.
+Fork this repository to your own GitHub account.
 
-### 2. Trigger the Workflow Manually
+### 2. Open the Workflow
 
-In your GitHub repository, go to:
+Go to:
 
-`Actions` -> `Compile Kernel` -> `Run workflow`
+`Actions` -> `Build OnePlus Kernel` -> `Run workflow`
 
-Then fill in the inputs as needed:
+### 3. Recommended Beginner Setup
 
-- `clang_version`: the AOSP Clang version to build with
-- `kernel_source`: the selected upstream source
-- `kernel_branch`: the target branch, for example `lineage-23.2`
-- `ksu_type`: the KernelSU variant to use
+If you just want the easiest path:
 
-### 3. Wait for the Build to Finish
+1. Choose your `Platform`
+2. Leave `Source` as `Recommended source for this platform`
+3. Leave `Branch Mode` as `Use the recommended branch automatically`
+4. Leave `Clang Version` as `Recommended (auto-select based on branch)`
+5. Pick the `Root Solution` you want
 
-The workflow will automatically perform these steps:
+### 4. Wait for CI to Finish
 
-1. Install dependencies
-2. Validate the workflow inputs
-3. Download or restore the Clang cache
-4. Restore the `ccache` cache
-5. Clone the kernel and modules repositories
-6. Inject the selected KernelSU and `susfs` changes when needed
-7. Generate `gki_defconfig` and the final `.config`
-8. Build `Image`
-9. Package `AnyKernel3`
-10. Create a GitHub Release and upload build artifacts
+The workflow will:
+
+1. install build dependencies
+2. resolve your friendly UI selections into the real build profile
+3. validate repo and branch availability
+4. restore Clang and `ccache`
+5. clone kernel and modules repositories
+6. apply the selected KernelSU variant
+7. generate `gki_defconfig` and the final `.config`
+8. build `Image`
+9. package `AnyKernel3`
+10. create a GitHub Release
+11. upload workflow artifacts
 
 ## Build Outputs
 
-When the build succeeds, the workflow produces:
+Successful builds produce:
 
 - `Image`
-- `sm8550_<ksu_type>_<timestamp>.zip`
+- `<soc>_<ksu_type>_<timestamp>.zip`
 
-These files are uploaded to the GitHub Release, and key outputs are also uploaded as workflow artifacts.
+The workflow also uploads:
 
-Release name format:
+- `build.log`
+- final `out/.config`
+- built `Image`
+- final zip package
 
-```text
-sm8550_<kernel_source>-<kernel_branch>_<ksu_type>_<timestamp>
-```
+## Source Mapping Used by the Workflow
 
-## Implementation Notes
+The workflow resolves friendly source choices to the actual upstream org automatically.
 
-### 1. Automatic Modules Repository Handling
+Examples:
 
-The workflow does not only clone the main kernel repository. It also clones:
-
-```text
-android_kernel_oneplus_sm8550-modules
-```
-
-This is required because the current target kernel trees depend on the sibling modules repository during `defconfig` and `Kconfig` resolution.
-
-### 2. Built-In `susfs` Compatibility Handling
-
-The workflow includes several compatibility adjustments, such as:
-
-- injecting `susfs_def.h` into `task_mmu.c` when needed
-- handling different KernelSU directory layouts
-- patching `Kconfig` and `Makefile` automatically
-- enabling `CONFIG_KSU_SUSFS` and related options automatically
-
-### 3. Extra Config for `ReSukiSU-with-susfs-KPM`
-
-When `ReSukiSU-with-susfs-KPM` is selected, the workflow also enables:
-
-- `CONFIG_KPM`
-- `CONFIG_KALLSYMS`
-- `CONFIG_KALLSYMS_ALL`
+- `SM8450` + `Recommended source for this platform` -> `lineage-ovaltine-dev`
+- `SM8550` + `Recommended source for this platform` -> `LineageOS`
+- `SM8650` + `Recommended source for this platform` -> `LineageOS`
 
 ## Environment
 
@@ -146,7 +188,7 @@ GitHub Actions runner setup:
 - `ubuntu-latest`
 - timeout: `120` minutes
 - swap: `16GB`
-- Clang: cached per selected version
+- Clang: cached per resolved version
 - `ccache`: reused across repeated builds
 
 Main build dependencies:
@@ -166,34 +208,18 @@ Main build dependencies:
 - `cpio`
 - `gcc-aarch64-linux-gnu`
 
-## Recommendations
-
-- Do not leave `kernel_branch` empty, or the workflow will fail immediately.
-- `LineageOS` and `OnePlus12R-development` usually work best with `lineage-*` branches.
-- If the selected upstream branch does not exist, the clone step will fail.
-- If you use a `susfs` combination, prefer the options that are explicitly supported by the current workflow.
-
 ## Known Limitations
 
-- This repository only provides the CI build pipeline and does not include the kernel source itself.
+- This repository only provides the CI build pipeline and does not include kernel source code.
 - Build success depends on the availability and compatibility of the selected upstream branch.
-- The `susfs` patches depend on the upstream code structure, so further adaptation may be required if upstream changes significantly.
-- The Release step depends on GitHub token permissions for publishing artifacts.
-
-## Use Cases
-
-This repository is useful for:
-
-- quickly verifying whether a specific `sm8550` kernel branch can build in GitHub Actions
-- generating test kernels for different KernelSU variants
-- automatically producing `Image` and a flashable `AnyKernel3` zip
+- `susfs` compatibility still depends on upstream kernel tree drift, so even with platform-specific patch selection some branches may still need manual adaptation.
+- Some upstreams are community-maintained rather than official LineageOS repositories.
+- The Release step depends on GitHub token permissions.
 
 ## Suggested Future Improvements
 
-If you plan to keep maintaining this project, consider adding:
-
-- a supported device list
-- recommended branch combinations
-- a troubleshooting section for common build failures
-- example Release screenshots
-- flashing risk notes and warnings
+- add more source presets per platform
+- add platform-specific troubleshooting notes
+- show known-good branch examples directly in the workflow summary
+- add screenshots for beginners
+- add per-platform flashing warnings
