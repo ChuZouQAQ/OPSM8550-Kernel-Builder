@@ -301,7 +301,18 @@ jobs:
                 SUSFS_REF="gki-android13-5.10"
                 ;;
               sm8550)
-                SUSFS_REF="gki-android13-5.15"
+                case "$KERNEL_BRANCH" in
+                  lineage-20*|thirteen*|android13*|13.*)
+                    SUSFS_REF="gki-android13-5.15"
+                    ;;
+                  lineage-21*|lineage-22*|lineage-23*|fourteen*|fifteen*|sixteen*|android14*|android15*|android16*|14.*|15.*|16.*)
+                    SUSFS_REF="gki-android14-5.15"
+                    ;;
+                  *)
+                    SUSFS_REF="gki-android14-5.15"
+                    echo "::warning::Could not confidently infer the best SM8550 susfs branch for '$KERNEL_BRANCH'. Falling back to $SUSFS_REF."
+                    ;;
+                esac
                 ;;
               sm8650)
                 SUSFS_REF="gki-android14-6.1"
@@ -741,6 +752,50 @@ jobs:
             fi
           }
 
+          verify_susfs_source_integration() {
+            local ksu_kernel_dir="$1"
+
+            test -f fs/susfs.c || {
+              echo "::error::fs/susfs.c is missing after applying susfs patches."
+              exit 1
+            }
+
+            test -f include/linux/susfs.h || {
+              echo "::error::include/linux/susfs.h is missing after applying susfs patches."
+              exit 1
+            }
+
+            test -f include/linux/susfs_def.h || {
+              echo "::error::include/linux/susfs_def.h is missing after applying susfs patches."
+              exit 1
+            }
+
+            grep -Fq 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || {
+              echo "::error::fs/Makefile does not reference susfs.o after applying susfs patches."
+              exit 1
+            }
+
+            grep -q 'ksu_handle_sys_reboot' kernel/reboot.c || {
+              echo "::error::kernel/reboot.c is missing the susfs reboot hook after applying susfs patches."
+              exit 1
+            }
+
+            grep -R -q 'CMD_SUSFS_SHOW_VERSION' "$ksu_kernel_dir" || {
+              echo "::error::KernelSU tree does not expose CMD_SUSFS_SHOW_VERSION, so the manager will not detect susfs."
+              exit 1
+            }
+
+            {
+              echo "==== SUSFS SOURCE PROOF ===="
+              echo "kernel_branch=${KERNEL_BRANCH}"
+              echo "susfs_ref=${SUSFS_REF}"
+              echo "susfs_patch=${SUSFS_PATCH_FILE}"
+              grep -Fn 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || true
+              grep -n 'ksu_handle_sys_reboot' kernel/reboot.c | head -n 5 || true
+              grep -R -n 'CMD_SUSFS_SHOW_VERSION' "$ksu_kernel_dir" | head -n 10 || true
+            } | tee susfs-source-proof.txt
+          }
+
           verify_susfs_binary_presence() {
             local symbol_hits=0
             local string_hits=0
@@ -760,6 +815,9 @@ jobs:
 
             {
               echo "==== SUSFS BINARY PROOF ===="
+              echo "kernel_branch=${KERNEL_BRANCH}"
+              echo "susfs_ref=${SUSFS_REF}"
+              echo "susfs_patch=${SUSFS_PATCH_FILE}"
               if [[ -f out/System.map ]]; then
                 grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map | head -n 20 || true
               fi
@@ -867,6 +925,8 @@ jobs:
 
             patch_susfs_kernelsu_layout
 
+            verify_susfs_source_integration "${KSU_KERNEL_DIR}"
+
             enable_susfs_configs arch/arm64/configs/gki_defconfig
           fi
 
@@ -969,6 +1029,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/build.log
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-source-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/.config
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/arch/arm64/boot/Image

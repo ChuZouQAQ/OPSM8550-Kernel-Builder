@@ -113,11 +113,13 @@ Available choices:
 ## Important Notes
 
 - `KernelSU-Next-with-susfs` is intentionally not exposed in the workflow.
-- `ReSukiSU + susfs` and `ReSukiSU + susfs + KPM` now use platform-specific `susfs4ksu` branches automatically:
+- `ReSukiSU + susfs` and `ReSukiSU + susfs + KPM` now use platform-aware `susfs4ksu` branches automatically:
 - `SM8450` -> `gki-android13-5.10`
-- `SM8550` -> `gki-android13-5.15`
+- `SM8550` + `lineage-20` / Android 13 style branches -> `gki-android13-5.15`
+- `SM8550` + `lineage-21+` / Android 14+ style branches -> `gki-android14-5.15`
 - `SM8650` -> `gki-android14-6.1`
 - The workflow now keeps `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS` disabled by default so `susfs` is easier to verify in managers and build artifacts.
+- The workflow now performs both source-level and binary-level `susfs` verification for `susfs` presets.
 - This workflow requires both the main kernel repository and the matching `-modules` repository to have the same branch.
 
 ## Usage
@@ -168,6 +170,7 @@ Successful builds produce:
 The workflow also uploads:
 
 - `build.log`
+- `susfs-source-proof.txt` when a `susfs` preset is used
 - `susfs-proof.txt` when a `susfs` preset is used
 - final `out/.config`
 - built `Image`
