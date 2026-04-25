@@ -295,7 +295,7 @@ jobs:
             esac
           fi
 
-          if [[ "$KSU_TYPE" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs* ]]; then
             case "$SOC" in
               sm8450)
                 SUSFS_REF="gki-android13-5.10"
@@ -978,7 +978,7 @@ jobs:
               ;;
           esac
 
-          if [[ "$KSU_TYPE" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs* ]]; then
             KSU_DRIVER_DIR="$(detect_kernelsu_driver_dir)" || {
               echo "::error::drivers directory not found before applying susfs"
               exit 1
@@ -1048,7 +1048,7 @@ jobs:
 
           make O=out gki_defconfig ${BUILD_CONFIGS}
 
-          if [[ "$KSU_TYPE" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs* ]]; then
             enable_susfs_configs out/.config
           fi
 
@@ -1062,7 +1062,7 @@ jobs:
 
           make O=out olddefconfig
 
-          if [[ "$KSU_TYPE" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs* ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
             require_config_disabled out/.config CONFIG_KSU_MANUAL_HOOK
             require_config_disabled out/.config CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
@@ -1089,7 +1089,7 @@ jobs:
             exit 1
           }
 
-          if [[ "$KSU_TYPE" == *susfs ]]; then
+          if [[ "$KSU_TYPE" == *susfs* ]]; then
             verify_resukisu_susfs_hook_mode
             verify_susfs_binary_presence
           fi
