@@ -921,17 +921,17 @@ jobs:
               exit 1
             }
 
-            if grep -q 'using KSU_TRACEPOINT_HOOK' build.log; then
+            if grep -Eq 'using KSU_TRACEPOINT_HOOK|using Tracepoint Syscall Redirect Hook' build.log; then
               echo "::error::ReSukiSU fell back to KSU_TRACEPOINT_HOOK, so the manager will not detect susfs inline mode."
               exit 1
             fi
 
-            if grep -q 'using KSU_MANUAL_HOOK' build.log; then
+            if grep -Eq 'using KSU_MANUAL_HOOK|using Manual Hook' build.log; then
               echo "::error::ReSukiSU fell back to KSU_MANUAL_HOOK, so this build is not the expected susfs inline mode."
               exit 1
             fi
 
-            grep -q 'using SUSFS_INLINE_HOOK' build.log || {
+            grep -Eq 'using SUSFS_INLINE_HOOK|using SuSFS Inline hook' build.log || {
               echo "::error::ReSukiSU did not report SUSFS_INLINE_HOOK in build.log."
               exit 1
             }
@@ -940,7 +940,7 @@ jobs:
               echo "==== RESUKISU SUSFS HOOK PROOF ===="
               echo "kernel_branch=${KERNEL_BRANCH}"
               echo "susfs_ref=${SUSFS_REF}"
-              grep -nE 'using SUSFS_INLINE_HOOK|using KSU_TRACEPOINT_HOOK|using KSU_MANUAL_HOOK' build.log || true
+              grep -nE 'using SUSFS_INLINE_HOOK|using SuSFS Inline hook|using KSU_TRACEPOINT_HOOK|using Tracepoint Syscall Redirect Hook|using KSU_MANUAL_HOOK|using Manual Hook' build.log || true
             } | tee susfs-hook-proof.txt
           }
 
