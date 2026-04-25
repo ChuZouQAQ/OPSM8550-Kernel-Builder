@@ -608,10 +608,10 @@ jobs:
               return 0
             fi
 
-            if grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);$' "$runtime_file" && \
-               grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);$' "$runtime_file" && \
-               grep -q '^#define ksu_init_rc_hook_inactive() (!static_branch_likely(&ksu_is_init_rc_hook_enabled))$' "$runtime_file" && \
-               grep -q '^#define ksu_input_hook_inactive() (!static_branch_likely(&ksu_is_input_hook_enabled))$' "$runtime_file"; then
+            if grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_init_rc_hook_enabled\);$' "$runtime_file" && \
+               grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_input_hook_enabled\);$' "$runtime_file" && \
+               grep -Eq '^[[:space:]]*#define ksu_init_rc_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_init_rc_hook_enabled\)\)$' "$runtime_file" && \
+               grep -Eq '^[[:space:]]*#define ksu_input_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_input_hook_enabled\)\)$' "$runtime_file"; then
               echo "[+] ReSukiSU runtime already contains native susfs hook support."
               return 0
             fi
@@ -628,24 +628,24 @@ jobs:
             insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "#define ksu_init_rc_hook_key_false ksu_is_init_rc_hook_enabled"
             insert_line_before_first_match "$runtime_file" "// use define to avoid ifdef" "#define ksu_input_hook_key_false ksu_is_input_hook_enabled"
 
-            grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);$' "$runtime_file" || {
+            grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_init_rc_hook_enabled\);$' "$runtime_file" || {
               echo "::error::Failed to inject ksu_is_init_rc_hook_enabled compatibility into ${runtime_file}"
               exit 1
             }
 
-            grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);$' "$runtime_file" || {
+            grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_input_hook_enabled\);$' "$runtime_file" || {
               echo "::error::Failed to inject ksu_is_input_hook_enabled compatibility into ${runtime_file}"
               exit 1
             }
 
-            if ! grep -q '^#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" && \
-               ! grep -q '^#define ksu_init_rc_hook_inactive() (!static_branch_likely(&ksu_is_init_rc_hook_enabled))$' "$runtime_file"; then
+            if ! grep -Eq '^[[:space:]]*#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" && \
+               ! grep -Eq '^[[:space:]]*#define ksu_init_rc_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_init_rc_hook_enabled\)\)$' "$runtime_file"; then
               echo "::error::Failed to retarget init_rc hook to the susfs static key in ${runtime_file}"
               exit 1
             fi
 
-            if ! grep -q '^#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" && \
-               ! grep -q '^#define ksu_input_hook_inactive() (!static_branch_likely(&ksu_is_input_hook_enabled))$' "$runtime_file"; then
+            if ! grep -Eq '^[[:space:]]*#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" && \
+               ! grep -Eq '^[[:space:]]*#define ksu_input_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_input_hook_enabled\)\)$' "$runtime_file"; then
               echo "::error::Failed to retarget input hook to the susfs static key in ${runtime_file}"
               exit 1
             fi
@@ -847,24 +847,24 @@ jobs:
                 exit 1
               }
 
-              grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);$' "$runtime_file" || {
+              grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_init_rc_hook_enabled\);$' "$runtime_file" || {
                 echo "::error::ReSukiSU runtime compat is missing ksu_is_init_rc_hook_enabled, so susfs builds will fail or silently fall back."
                 exit 1
               }
 
-              grep -q '^DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);$' "$runtime_file" || {
+              grep -Eq '^[[:space:]]*DEFINE_STATIC_KEY_TRUE\(ksu_is_input_hook_enabled\);$' "$runtime_file" || {
                 echo "::error::ReSukiSU runtime compat is missing ksu_is_input_hook_enabled, so susfs builds will fail or silently fall back."
                 exit 1
               }
 
-              if ! grep -q '^#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" && \
-                 ! grep -q '^#define ksu_init_rc_hook_inactive() (!static_branch_likely(&ksu_is_init_rc_hook_enabled))$' "$runtime_file"; then
+              if ! grep -Eq '^[[:space:]]*#define ksu_init_rc_hook ksu_is_init_rc_hook_enabled$' "$runtime_file" && \
+                 ! grep -Eq '^[[:space:]]*#define ksu_init_rc_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_init_rc_hook_enabled\)\)$' "$runtime_file"; then
                 echo "::error::ReSukiSU runtime compat is not pointing init_rc hook to the susfs static key."
                 exit 1
               fi
 
-              if ! grep -q '^#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" && \
-                 ! grep -q '^#define ksu_input_hook_inactive() (!static_branch_likely(&ksu_is_input_hook_enabled))$' "$runtime_file"; then
+              if ! grep -Eq '^[[:space:]]*#define ksu_input_hook ksu_is_input_hook_enabled$' "$runtime_file" && \
+                 ! grep -Eq '^[[:space:]]*#define ksu_input_hook_inactive\(\) \(!static_branch_likely\(&ksu_is_input_hook_enabled\)\)$' "$runtime_file"; then
                 echo "::error::ReSukiSU runtime compat is not pointing input hook to the susfs static key."
                 exit 1
               fi
