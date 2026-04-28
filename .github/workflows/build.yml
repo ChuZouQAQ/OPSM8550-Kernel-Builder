@@ -60,13 +60,36 @@ on:
           - ReSukiSU
           - ReSukiSU + susfs
           - ReSukiSU + susfs + KPM
+          - ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
 
 jobs:
   Kernel_CI:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - selector: No root changes
+            ksu_type: None
+          - selector: Official KernelSU
+            ksu_type: Official-KernelSU
+          - selector: KernelSU-Next
+            ksu_type: KernelSU-Next
+          - selector: KowSU
+            ksu_type: KowSU
+          - selector: ReSukiSU
+            ksu_type: ReSukiSU
+          - selector: ReSukiSU + susfs
+            ksu_type: ReSukiSU-with-susfs
+          - selector: ReSukiSU + susfs + KPM
+            ksu_type: ReSukiSU-with-susfs-KPM
+          - selector: ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
+            ksu_type: ReSukiSU-with-susfs
+          - selector: ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
+            ksu_type: ReSukiSU-with-susfs-KPM
     concurrency:
-      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.source_choice }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ inputs.root_solution }}-${{ inputs.clang_choice }}
+      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.source_choice }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ matrix.ksu_type }}-${{ inputs.clang_choice }}
       cancel-in-progress: true
 
     permissions:
@@ -78,15 +101,29 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
+      - name: Select requested build variant
+        id: select-build
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ matrix.selector }}" == "${{ inputs.root_solution }}" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: Setup SWAP
+        if: steps.select-build.outputs.should_run == 'true'
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 16
 
       - name: Install build dependencies
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           sudo apt update
@@ -109,6 +146,7 @@ jobs:
 
       - name: Resolve build profile
         id: resolve
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -218,33 +256,7 @@ jobs:
               ;;
           esac
 
-          case "${{ inputs.root_solution }}" in
-            "No root changes")
-              KSU_TYPE="None"
-              ;;
-            "Official KernelSU")
-              KSU_TYPE="Official-KernelSU"
-              ;;
-            "KernelSU-Next")
-              KSU_TYPE="KernelSU-Next"
-              ;;
-            "KowSU")
-              KSU_TYPE="KowSU"
-              ;;
-            "ReSukiSU")
-              KSU_TYPE="ReSukiSU"
-              ;;
-            "ReSukiSU + susfs")
-              KSU_TYPE="ReSukiSU-with-susfs"
-              ;;
-            "ReSukiSU + susfs + KPM")
-              KSU_TYPE="ReSukiSU-with-susfs-KPM"
-              ;;
-            *)
-              echo "::error::Unknown root solution: ${{ inputs.root_solution }}"
-              exit 1
-              ;;
-          esac
+          KSU_TYPE="${{ matrix.ksu_type }}"
 
           SUSFS_REF=""
           SUSFS_PATCH_FILE=""
@@ -391,6 +403,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set build metadata
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           SAFE_KERNEL_BRANCH="$KERNEL_BRANCH"
@@ -402,6 +415,7 @@ jobs:
 
       - name: Restore AOSP Clang cache
         id: clang-cache
+        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: toolchains/${{ steps.resolve.outputs.clang_version }}
@@ -409,6 +423,7 @@ jobs:
 
       - name: Restore ccache
         id: ccache-restore
+        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: .ccache
@@ -419,6 +434,7 @@ jobs:
             ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-
 
       - name: Clone Kernel Source
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -436,7 +452,7 @@ jobs:
           }
 
       - name: Download AOSP Clang
-        if: steps.clang-cache.outputs.cache-hit != 'true'
+        if: steps.select-build.outputs.should_run == 'true' && steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
 
@@ -471,11 +487,13 @@ jobs:
           rm -f "${CLANG_VERSION}.tar.gz"
 
       - name: Validate AOSP Clang
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang"
 
       - name: Compile Kernel
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1110,6 +1128,7 @@ jobs:
           test -f out/arch/arm64/boot/Image
 
       - name: Make AnyKernel3
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1127,6 +1146,7 @@ jobs:
           test -f "../${ZIP_NAME}.zip"
 
       - name: Create GitHub Release
+        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1144,7 +1164,7 @@ jobs:
             "$IMAGE_FILE"
 
       - name: Publish susfs diagnostics
-        if: always()
+        if: always() && steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1192,7 +1212,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build artifacts
-        if: always()
+        if: always() && steps.select-build.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-${{ steps.resolve.outputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
@@ -1207,7 +1227,7 @@ jobs:
             ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip
 
       - name: Save ccache
-        if: always() && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
+        if: always() && steps.select-build.outputs.should_run == 'true' && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
         uses: actions/cache/save@v4
         with:
           path: .ccache
