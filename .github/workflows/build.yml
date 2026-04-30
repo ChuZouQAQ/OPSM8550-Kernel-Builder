@@ -1,10 +1,12 @@
 name: Build OnePlus Kernel
+run-name: >-
+  ${{ inputs.platform }} | ${{ inputs.source_choice }} | ${{ inputs.root_solution }}
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Which platform do you want to build for?
+        description: Target chipset / device family
         required: true
         type: choice
         default: Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
@@ -13,7 +15,7 @@ on:
           - Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
           - Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)
       source_choice:
-        description: Where should the kernel source come from?
+        description: Upstream kernel source preset
         required: true
         type: choice
         default: Recommended source for this platform
@@ -23,7 +25,7 @@ on:
           - crDroid source
           - OnePlus 12R development source (SM8550 only)
       branch_mode:
-        description: Choose automatically, or type your own branch name
+        description: Use the upstream default branch or enter one manually
         required: true
         type: choice
         default: Use the recommended branch automatically
@@ -31,24 +33,25 @@ on:
           - Use the recommended branch automatically
           - I want to type the branch name myself
       kernel_branch:
-        description: Optional custom branch, for example lineage-23.2. Leave blank if using automatic branch selection.
+        description: Only used in manual mode, for example lineage-23.2
         required: false
         type: string
         default: ""
       clang_choice:
-        description: Clang version. The recommended option is best for most users.
+        description: Compiler preset. Auto is recommended for most builds.
         required: true
         type: choice
         default: Recommended (auto-select based on branch)
         options:
           - Recommended (auto-select based on branch)
-          - clang-r547379 (older Android 16 / LineageOS 23.0 era)
+          - clang-r563880c (Android 16 / LineageOS 23.2+ era)
+          - clang-r547379 (Android 16 / LineageOS 23.0 era)
           - clang-r536225 (Android 15 / LineageOS 22.2 era)
           - clang-r487747c (Android 14 / LineageOS 21 era)
           - clang-r450784d (Android 13 / LineageOS 20 era)
           - clang-r416183b1 (Android 12 / LineageOS 19.1 era)
       root_solution:
-        description: Root / KernelSU add-on
+        description: KernelSU / root add-on preset
         required: true
         type: choice
         default: No root changes
@@ -60,34 +63,61 @@ on:
           - ReSukiSU
           - ReSukiSU + susfs
           - ReSukiSU + susfs + KPM
-          - ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
+          - ReSukiSU + susfs (build both: with KPM and without KPM)
 
 jobs:
+  prepare:
+    name: Resolve requested build variants
+    runs-on: ubuntu-latest
+    outputs:
+      build_matrix: ${{ steps.select-matrix.outputs.build_matrix }}
+    steps:
+      - name: Select build matrix
+        id: select-matrix
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.root_solution }}" in
+            "No root changes")
+              BUILD_MATRIX='{"include":[{"build_label":"No root changes","ksu_type":"None"}]}'
+              ;;
+            "Official KernelSU")
+              BUILD_MATRIX='{"include":[{"build_label":"Official KernelSU","ksu_type":"Official-KernelSU"}]}'
+              ;;
+            "KernelSU-Next")
+              BUILD_MATRIX='{"include":[{"build_label":"KernelSU-Next","ksu_type":"KernelSU-Next"}]}'
+              ;;
+            "KowSU")
+              BUILD_MATRIX='{"include":[{"build_label":"KowSU","ksu_type":"KowSU"}]}'
+              ;;
+            "ReSukiSU")
+              BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU","ksu_type":"ReSukiSU"}]}'
+              ;;
+            "ReSukiSU + susfs")
+              BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs","ksu_type":"ReSukiSU-with-susfs"}]}'
+              ;;
+            "ReSukiSU + susfs + KPM")
+              BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs + KPM","ksu_type":"ReSukiSU-with-susfs-KPM"}]}'
+              ;;
+            "ReSukiSU + susfs (build both: with KPM and without KPM)")
+              BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs","ksu_type":"ReSukiSU-with-susfs"},{"build_label":"ReSukiSU + susfs + KPM","ksu_type":"ReSukiSU-with-susfs-KPM"}]}'
+              ;;
+            *)
+              echo "::error::Unsupported root solution: ${{ inputs.root_solution }}"
+              exit 1
+              ;;
+          esac
+
+          echo "build_matrix=${BUILD_MATRIX}" >> "$GITHUB_OUTPUT"
+
   Kernel_CI:
+    name: Build ${{ matrix.build_label }}
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - selector: No root changes
-            ksu_type: None
-          - selector: Official KernelSU
-            ksu_type: Official-KernelSU
-          - selector: KernelSU-Next
-            ksu_type: KernelSU-Next
-          - selector: KowSU
-            ksu_type: KowSU
-          - selector: ReSukiSU
-            ksu_type: ReSukiSU
-          - selector: ReSukiSU + susfs
-            ksu_type: ReSukiSU-with-susfs
-          - selector: ReSukiSU + susfs + KPM
-            ksu_type: ReSukiSU-with-susfs-KPM
-          - selector: ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
-            ksu_type: ReSukiSU-with-susfs
-          - selector: ReSukiSU + susfs（同时构建：含 KPM 和不含 KPM）
-            ksu_type: ReSukiSU-with-susfs-KPM
+      matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
     concurrency:
       group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.source_choice }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ matrix.ksu_type }}-${{ inputs.clang_choice }}
       cancel-in-progress: true
@@ -101,29 +131,15 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Select requested build variant
-        id: select-build
-        run: |
-          set -euo pipefail
-
-          if [[ "${{ matrix.selector }}" == "${{ inputs.root_solution }}" ]]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout
-        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Setup SWAP
-        if: steps.select-build.outputs.should_run == 'true'
+      - name: Set up swap
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 16
 
       - name: Install build dependencies
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           sudo apt update
@@ -142,11 +158,11 @@ jobs:
             ccache \
             dwarves \
             cpio \
-            gcc-aarch64-linux-gnu
+            gcc-aarch64-linux-gnu \
+            zip
 
       - name: Resolve build profile
         id: resolve
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -235,7 +251,10 @@ jobs:
             "Recommended (auto-select based on branch)")
               CLANG_VERSION=""
               ;;
-            "clang-r547379 (older Android 16 / LineageOS 23.0 era)")
+            "clang-r563880c (Android 16 / LineageOS 23.2+ era)")
+              CLANG_VERSION="clang-r563880c"
+              ;;
+            "clang-r547379 (Android 16 / LineageOS 23.0 era)")
               CLANG_VERSION="clang-r547379"
               ;;
             "clang-r536225 (Android 15 / LineageOS 22.2 era)")
@@ -403,7 +422,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set build metadata
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           SAFE_KERNEL_BRANCH="$KERNEL_BRANCH"
@@ -415,7 +433,6 @@ jobs:
 
       - name: Restore AOSP Clang cache
         id: clang-cache
-        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: toolchains/${{ steps.resolve.outputs.clang_version }}
@@ -423,7 +440,6 @@ jobs:
 
       - name: Restore ccache
         id: ccache-restore
-        if: steps.select-build.outputs.should_run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: .ccache
@@ -434,7 +450,6 @@ jobs:
             ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-
 
       - name: Clone Kernel Source
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -452,7 +467,7 @@ jobs:
           }
 
       - name: Download AOSP Clang
-        if: steps.select-build.outputs.should_run == 'true' && steps.clang-cache.outputs.cache-hit != 'true'
+        if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
 
@@ -487,13 +502,11 @@ jobs:
           rm -f "${CLANG_VERSION}.tar.gz"
 
       - name: Validate AOSP Clang
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang"
 
       - name: Compile Kernel
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -803,6 +816,22 @@ jobs:
               CONFIG_KALLSYMS_ALL
           }
 
+          apply_variant_configs() {
+            local config_file="$1"
+
+            if [[ "$KSU_TYPE" == *susfs* ]]; then
+              enable_susfs_configs "$config_file"
+            fi
+
+            if [[ "$KSU_TYPE" != "None" ]]; then
+              enable_ksu_common_configs "$config_file"
+            fi
+
+            if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
+              enable_resukisu_kpm_configs "$config_file"
+            fi
+          }
+
           require_config_enabled() {
             local config_file="$1"
             local key="$2"
@@ -1063,32 +1092,15 @@ jobs:
 
             verify_susfs_source_integration "${KSU_KERNEL_DIR}"
 
-            enable_susfs_configs arch/arm64/configs/gki_defconfig
           fi
 
           touch .scmversion
 
-          if [[ "$KSU_TYPE" != "None" ]]; then
-            enable_ksu_common_configs arch/arm64/configs/gki_defconfig
-          fi
-
-          if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
-            enable_resukisu_kpm_configs arch/arm64/configs/gki_defconfig
-          fi
+          apply_variant_configs arch/arm64/configs/gki_defconfig
 
           make O=out gki_defconfig ${BUILD_CONFIGS}
 
-          if [[ "$KSU_TYPE" == *susfs* ]]; then
-            enable_susfs_configs out/.config
-          fi
-
-          if [[ "$KSU_TYPE" != "None" ]]; then
-            enable_ksu_common_configs out/.config
-          fi
-
-          if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
-            enable_resukisu_kpm_configs out/.config
-          fi
+          apply_variant_configs out/.config
 
           make O=out olddefconfig
 
@@ -1128,7 +1140,6 @@ jobs:
           test -f out/arch/arm64/boot/Image
 
       - name: Make AnyKernel3
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1146,7 +1157,6 @@ jobs:
           test -f "../${ZIP_NAME}.zip"
 
       - name: Create GitHub Release
-        if: steps.select-build.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -1164,7 +1174,7 @@ jobs:
             "$IMAGE_FILE"
 
       - name: Publish susfs diagnostics
-        if: always() && steps.select-build.outputs.should_run == 'true'
+        if: always()
         run: |
           set -euo pipefail
 
@@ -1212,7 +1222,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build artifacts
-        if: always() && steps.select-build.outputs.should_run == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-${{ steps.resolve.outputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
@@ -1227,7 +1237,7 @@ jobs:
             ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip
 
       - name: Save ccache
-        if: always() && steps.select-build.outputs.should_run == 'true' && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
+        if: always() && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
         uses: actions/cache/save@v4
         with:
           path: .ccache
