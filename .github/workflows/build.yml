@@ -21,6 +21,7 @@ on:
         default: Recommended source for this platform
         options:
           - Recommended source for this platform
+          - OnePlus official source
           - LineageOS / community source
           - crDroid source
           - OnePlus 12R development source (SM8550 only)
@@ -172,6 +173,8 @@ jobs:
               PLATFORM_SLUG="8gen1"
               PLATFORM_NAME="Snapdragon 8 Gen 1"
               BUILD_CONFIGS="vendor/waipio_GKI.config vendor/oplus/waipio_GKI.config vendor/debugfs.config"
+              OFFICIAL_BUILD_TARGET="waipio"
+              OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/waipio_GKI.config"
               RECOMMENDED_SOURCE="lineage-ovaltine-dev"
               ;;
             "Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)")
@@ -179,6 +182,8 @@ jobs:
               PLATFORM_SLUG="8gen2"
               PLATFORM_NAME="Snapdragon 8 Gen 2"
               BUILD_CONFIGS="vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config"
+              OFFICIAL_BUILD_TARGET="kalama"
+              OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/kalama_GKI.config"
               RECOMMENDED_SOURCE="LineageOS"
               ;;
             "Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)")
@@ -186,6 +191,8 @@ jobs:
               PLATFORM_SLUG="8gen3"
               PLATFORM_NAME="Snapdragon 8 Gen 3"
               BUILD_CONFIGS="vendor/pineapple_GKI.config vendor/oplus/pineapple_GKI.config"
+              OFFICIAL_BUILD_TARGET="pineapple"
+              OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/pineapple_GKI.config"
               RECOMMENDED_SOURCE="LineageOS"
               ;;
             *)
@@ -197,8 +204,14 @@ jobs:
           case "${{ inputs.source_choice }}" in
             "Recommended source for this platform")
               KERNEL_SOURCE="$RECOMMENDED_SOURCE"
+              SOURCE_LAYOUT="community-flat"
+              ;;
+            "OnePlus official source")
+              KERNEL_SOURCE="OnePlusOSS"
+              SOURCE_LAYOUT="oneplus-official"
               ;;
             "LineageOS / community source")
+              SOURCE_LAYOUT="community-flat"
               case "$SOC" in
                 sm8450)
                   KERNEL_SOURCE="lineage-ovaltine-dev"
@@ -209,6 +222,7 @@ jobs:
               esac
               ;;
             "crDroid source")
+              SOURCE_LAYOUT="community-flat"
               if [[ "$SOC" == "sm8450" ]]; then
                 echo "::error::crDroid source is not configured for Snapdragon 8 Gen 1 in this workflow yet."
                 exit 1
@@ -216,6 +230,7 @@ jobs:
               KERNEL_SOURCE="crdroidandroid"
               ;;
             "OnePlus 12R development source (SM8550 only)")
+              SOURCE_LAYOUT="community-flat"
               if [[ "$SOC" != "sm8550" ]]; then
                 echo "::error::OnePlus 12R development source is only available for Snapdragon 8 Gen 2 (SM8550)."
                 exit 1
@@ -229,6 +244,10 @@ jobs:
           esac
 
           case "$KERNEL_SOURCE" in
+            "OnePlusOSS")
+              SOURCE_NAME="OnePlus official source"
+              SOURCE_SLUG="oneplus-official"
+              ;;
             "LineageOS")
               SOURCE_NAME="LineageOS"
               SOURCE_SLUG="lineageos"
@@ -280,8 +299,19 @@ jobs:
           SUSFS_REF=""
           SUSFS_PATCH_FILE=""
 
-          KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
-          MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}-modules.git"
+          if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
+            KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
+            MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${SOC}.git"
+            KERNEL_CLONE_DIR="${SOC}-modules/kernel_platform/msm-kernel"
+            MODULES_CLONE_DIR="${SOC}-modules"
+            OFFICIAL_BUILD_CONFIG="msm-kernel/build.config.msm.${OFFICIAL_BUILD_TARGET}"
+          else
+            KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
+            MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}-modules.git"
+            KERNEL_CLONE_DIR="${SOC}"
+            MODULES_CLONE_DIR="${SOC}-modules"
+            OFFICIAL_BUILD_CONFIG=""
+          fi
 
           if [[ "${{ inputs.branch_mode }}" == "Use the recommended branch automatically" ]]; then
             KERNEL_BRANCH="$(git ls-remote --symref "$KERNEL_REPO" HEAD | awk '/^ref:/ {sub("refs/heads/","",$2); print $2; exit}')"
@@ -301,22 +331,22 @@ jobs:
 
           if [[ -z "$CLANG_VERSION" ]]; then
             case "$KERNEL_BRANCH" in
-              lineage-19.1*)
+              lineage-19.1*|oneplus/*_s_12.1*|oneplus/*_s_12.0*)
                 CLANG_VERSION="clang-r416183b1"
                 ;;
-              lineage-20*|thirteen*)
+              lineage-20*|thirteen*|oneplus/*_t_13*|oneplus_*_t_13*)
                 CLANG_VERSION="clang-r450784d"
                 ;;
-              lineage-21*|fourteen*)
+              lineage-21*|fourteen*|oneplus/*_u_14*|oneplus_*_u_14*)
                 CLANG_VERSION="clang-r487747c"
                 ;;
-              lineage-22*|fifteen*)
+              lineage-22*|fifteen*|oneplus/*_v_15*|oneplus_*_v_15*)
                 CLANG_VERSION="clang-r536225"
                 ;;
               lineage-23.0*)
                 CLANG_VERSION="clang-r547379"
                 ;;
-              16.0|lineage-23*)
+              16.0|lineage-23*|oneplus/*_b_16*|oneplus_*_b_16*)
                 CLANG_VERSION="clang-r563880c"
                 ;;
               *)
@@ -333,10 +363,10 @@ jobs:
                 ;;
               sm8550)
                 case "$KERNEL_BRANCH" in
-                  lineage-20*|thirteen*|android13*|13.*)
+                  lineage-20*|thirteen*|android13*|13.*|oneplus/*_t_13*|oneplus_*_t_13*)
                     SUSFS_REF="gki-android13-5.15"
                     ;;
-                  lineage-21*|lineage-22*|lineage-23*|fourteen*|fifteen*|sixteen*|android14*|android15*|android16*|14.*|15.*|16.*)
+                  lineage-21*|lineage-22*|lineage-23*|fourteen*|fifteen*|sixteen*|android14*|android15*|android16*|14.*|15.*|16.*|oneplus/*_u_14*|oneplus/*_v_15*|oneplus/*_b_16*|oneplus_*_u_14*|oneplus_*_v_15*|oneplus_*_b_16*)
                     SUSFS_REF="gki-android14-5.15"
                     ;;
                   *)
@@ -369,6 +399,11 @@ jobs:
           fi
 
           case "$KERNEL_SOURCE" in
+            OnePlusOSS)
+              if [[ ! "$KERNEL_BRANCH" =~ ^oneplus/ ]] && [[ ! "$KERNEL_BRANCH" =~ ^oneplus_ ]]; then
+                echo "::warning::This source usually uses oneplus/* branches, but '$KERNEL_BRANCH' was selected."
+              fi
+              ;;
             LineageOS|OnePlus12R-development|lineage-ovaltine-dev)
               if [[ ! "$KERNEL_BRANCH" =~ ^lineage- ]]; then
                 echo "::warning::This source usually uses lineage-* branches, but '$KERNEL_BRANCH' was selected."
@@ -384,11 +419,17 @@ jobs:
             echo "PLATFORM_SLUG=$PLATFORM_SLUG"
             echo "PLATFORM_NAME=$PLATFORM_NAME"
             echo "BUILD_CONFIGS=$BUILD_CONFIGS"
+            echo "SOURCE_LAYOUT=$SOURCE_LAYOUT"
             echo "KERNEL_SOURCE=$KERNEL_SOURCE"
             echo "SOURCE_NAME=$SOURCE_NAME"
             echo "SOURCE_SLUG=$SOURCE_SLUG"
             echo "KERNEL_REPO=$KERNEL_REPO"
             echo "MODULES_REPO=$MODULES_REPO"
+            echo "KERNEL_CLONE_DIR=$KERNEL_CLONE_DIR"
+            echo "MODULES_CLONE_DIR=$MODULES_CLONE_DIR"
+            echo "OFFICIAL_BUILD_TARGET=$OFFICIAL_BUILD_TARGET"
+            echo "OFFICIAL_GKI_FRAGMENT=$OFFICIAL_GKI_FRAGMENT"
+            echo "OFFICIAL_BUILD_CONFIG=$OFFICIAL_BUILD_CONFIG"
             echo "KERNEL_BRANCH=$KERNEL_BRANCH"
             echo "CLANG_VERSION=$CLANG_VERSION"
             echo "KSU_TYPE=$KSU_TYPE"
@@ -403,6 +444,7 @@ jobs:
             echo "kernel_source=$KERNEL_SOURCE"
             echo "source_name=$SOURCE_NAME"
             echo "source_slug=$SOURCE_SLUG"
+            echo "source_layout=$SOURCE_LAYOUT"
             echo "kernel_branch=$KERNEL_BRANCH"
             echo "clang_version=$CLANG_VERSION"
             echo "ksu_type=$KSU_TYPE"
@@ -453,18 +495,24 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "Cloning modules repo: $MODULES_REPO"
+          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$MODULES_REPO" "$MODULES_CLONE_DIR" || {
+            echo "::error::Failed to clone modules repo for branch '$KERNEL_BRANCH': $MODULES_REPO"
+            echo "::error::This workflow requires the matching modules repository for defconfig/Kconfig resolution."
+            exit 1
+          }
+
           echo "Cloning kernel repo: $KERNEL_REPO"
-          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$KERNEL_REPO" "${SOC}" || {
+          mkdir -p "$(dirname "$KERNEL_CLONE_DIR")"
+          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_CLONE_DIR" || {
             echo "::error::Failed to clone kernel repo for branch '$KERNEL_BRANCH': $KERNEL_REPO"
             exit 1
           }
 
-          echo "Cloning modules repo: $MODULES_REPO"
-          git clone --depth=1 --single-branch --no-tags -b "$KERNEL_BRANCH" "$MODULES_REPO" "${SOC}-modules" || {
-            echo "::error::Failed to clone modules repo for branch '$KERNEL_BRANCH': $MODULES_REPO"
-            echo "::error::This kernel tree expects a sibling '${SOC}-modules' repo during defconfig/Kconfig resolution."
-            exit 1
-          }
+          if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
+            rm -rf "${SOC}"
+            ln -sfn "${GITHUB_WORKSPACE}/${KERNEL_CLONE_DIR}" "${SOC}"
+          fi
 
       - name: Download AOSP Clang
         if: steps.clang-cache.outputs.cache-hit != 'true'
@@ -1096,13 +1144,54 @@ jobs:
 
           touch .scmversion
 
-          apply_variant_configs arch/arm64/configs/gki_defconfig
+          if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
+            BUILD_ROOT="${GITHUB_WORKSPACE}/${MODULES_CLONE_DIR}/kernel_platform"
 
-          make O=out gki_defconfig ${BUILD_CONFIGS}
+            apply_variant_configs arch/arm64/configs/gki_defconfig
+            apply_variant_configs "${OFFICIAL_GKI_FRAGMENT}"
 
-          apply_variant_configs out/.config
+            ccache -z || true
 
-          make O=out olddefconfig
+            pushd "${BUILD_ROOT}"
+            VARIANT=gki BUILD_CONFIG="${OFFICIAL_BUILD_CONFIG}" build/build.sh 2>&1 | tee "${GITHUB_WORKSPACE}/${SOC}/build.log" || {
+              ccache -sv || true
+              echo "==== BUILD ERROR SUMMARY ===="
+              grep -nE ' error:|undefined reference|No rule to make target|fatal error:' "${GITHUB_WORKSPACE}/${SOC}/build.log" | tail -n 50 || true
+              echo "==== BUILD FAILED (last 200 lines) ===="
+              tail -n 200 "${GITHUB_WORKSPACE}/${SOC}/build.log" || true
+              exit 1
+            }
+            popd
+
+            OFFICIAL_OUT_DIR="$(find "${BUILD_ROOT}/out" -maxdepth 2 -type d -name msm-kernel | sort | head -n 1)"
+            if [[ -z "${OFFICIAL_OUT_DIR}" ]]; then
+              echo "::error::Could not locate the official kernel out directory under ${BUILD_ROOT}/out"
+              find "${BUILD_ROOT}/out" -maxdepth 3 -type d -print || true
+              exit 1
+            fi
+
+            rm -rf out
+            ln -sfn "${OFFICIAL_OUT_DIR}" out
+          else
+            apply_variant_configs arch/arm64/configs/gki_defconfig
+
+            make O=out gki_defconfig ${BUILD_CONFIGS}
+
+            apply_variant_configs out/.config
+
+            make O=out olddefconfig
+
+            ccache -z || true
+
+            make -j"$(nproc)" O=out Image 2>&1 | tee build.log || {
+              ccache -sv || true
+              echo "==== BUILD ERROR SUMMARY ===="
+              grep -nE ' error:|undefined reference|No rule to make target|fatal error:' build.log | tail -n 50 || true
+              echo "==== BUILD FAILED (last 200 lines) ===="
+              tail -n 200 build.log || true
+              exit 1
+            }
+          fi
 
           if [[ "$KSU_TYPE" == *susfs* ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
@@ -1119,17 +1208,6 @@ jobs:
             echo "==== RESUKISU KPM CONFIG SNAPSHOT ===="
             grep -E '^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' out/.config || true
           fi
-
-          ccache -z || true
-
-          make -j"$(nproc)" O=out Image 2>&1 | tee build.log || {
-            ccache -sv || true
-            echo "==== BUILD ERROR SUMMARY ===="
-            grep -nE ' error:|undefined reference|No rule to make target|fatal error:' build.log | tail -n 50 || true
-            echo "==== BUILD FAILED (last 200 lines) ===="
-            tail -n 200 build.log || true
-            exit 1
-          }
 
           if [[ "$KSU_TYPE" == *susfs* ]]; then
             verify_resukisu_susfs_hook_mode

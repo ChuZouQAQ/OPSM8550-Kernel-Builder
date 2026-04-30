@@ -22,6 +22,7 @@ This repository only contains the CI pipeline and workflow UI. It does not ship 
 
 Additional source presets:
 
+- all supported platforms: `OnePlus official source`
 - `SM8550`: `crDroid`, `OnePlus 12R development`
 - `SM8650`: `crDroid`
 
@@ -52,6 +53,7 @@ Choose one of:
 Available presets:
 
 - `Recommended source for this platform`
+- `OnePlus official source`
 - `LineageOS / community source`
 - `crDroid source`
 - `OnePlus 12R development source (SM8550 only)`
@@ -70,6 +72,15 @@ Manual mode expects a branch such as:
 - `lineage-23.2`
 - `lineage-23.0`
 - `16.0`
+- `oneplus/sm8550_v_15.0.0_oneplus11`
+- `oneplus/sm8650_v_15.0.0_oneplus12`
+
+For `OnePlus official source`, the workflow now switches to the official layout automatically:
+
+- kernel repo: `OnePlusOSS/android_kernel_oneplus_<soc>`
+- matching modules/devicetree repo: `OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_<soc>`
+- build entrypoint: the official `kernel_platform/build/build.sh`
+- kernel tree mount point: `kernel_platform/msm-kernel`
 
 ### Clang Version
 
@@ -117,6 +128,7 @@ Each build run goes through the same high-level flow:
 2. Validate that both the kernel repo and matching `-modules` repo expose the selected branch.
 3. Restore cached Clang and `ccache`, or download the required AOSP Clang if needed.
 4. Clone the kernel source and matching modules tree.
+   - official OnePlus source builds are re-laid out into the upstream `kernel_platform/msm-kernel` structure before compilation
 5. Apply the selected KernelSU / ReSukiSU changes and generate the final kernel config.
 6. Build `Image`.
 7. Package the output into an `AnyKernel3` zip.
@@ -190,6 +202,7 @@ Main build dependencies installed by the workflow:
 
 - `KernelSU-Next-with-susfs` is intentionally not exposed in this workflow.
 - The kernel repo and matching `-modules` repo must both provide the same branch.
+- Official OnePlus source uses a different repository naming and on-disk layout from community trees; the workflow now handles that automatically.
 - Some upstreams are community-maintained rather than official LineageOS repositories.
 - Release publishing depends on GitHub token permissions.
 
@@ -197,5 +210,6 @@ Main build dependencies installed by the workflow:
 
 - This repository only provides the CI workflow, not kernel source code.
 - Build success still depends on upstream branch availability and source compatibility.
+- Official OnePlus branches may require different device-specific testing than community branches even when CI completes successfully.
 - `susfs` patching can still break on upstream tree drift and may need manual adaptation on unusual branches.
 - A successful CI build does not guarantee that a packaged kernel is safe for your exact device or flashing setup.
