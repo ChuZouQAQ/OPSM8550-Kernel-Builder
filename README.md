@@ -79,8 +79,8 @@ For `OnePlus official source`, the workflow now switches to the official layout 
 
 - kernel repo: `OnePlusOSS/android_kernel_oneplus_<soc>`
 - matching modules/devicetree repo: `OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_<soc>`
-- build entrypoint: the official `kernel_platform/build/build.sh`
 - kernel tree mount point: `kernel_platform/msm-kernel`
+- build still goes through the same lightweight `make O=out ...` flow used by community sources, but with the official relative paths preserved
 
 ### Clang Version
 

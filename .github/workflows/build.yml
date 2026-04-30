@@ -304,13 +304,11 @@ jobs:
             MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${SOC}.git"
             KERNEL_CLONE_DIR="${SOC}-modules/kernel_platform/msm-kernel"
             MODULES_CLONE_DIR="${SOC}-modules"
-            OFFICIAL_BUILD_CONFIG="msm-kernel/build.config.msm.${OFFICIAL_BUILD_TARGET}"
           else
             KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
             MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}-modules.git"
             KERNEL_CLONE_DIR="${SOC}"
             MODULES_CLONE_DIR="${SOC}-modules"
-            OFFICIAL_BUILD_CONFIG=""
           fi
 
           if [[ "${{ inputs.branch_mode }}" == "Use the recommended branch automatically" ]]; then
@@ -429,7 +427,6 @@ jobs:
             echo "MODULES_CLONE_DIR=$MODULES_CLONE_DIR"
             echo "OFFICIAL_BUILD_TARGET=$OFFICIAL_BUILD_TARGET"
             echo "OFFICIAL_GKI_FRAGMENT=$OFFICIAL_GKI_FRAGMENT"
-            echo "OFFICIAL_BUILD_CONFIG=$OFFICIAL_BUILD_CONFIG"
             echo "KERNEL_BRANCH=$KERNEL_BRANCH"
             echo "CLANG_VERSION=$CLANG_VERSION"
             echo "KSU_TYPE=$KSU_TYPE"
@@ -1144,54 +1141,29 @@ jobs:
 
           touch .scmversion
 
+          ACTIVE_BUILD_CONFIGS="${BUILD_CONFIGS}"
           if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
-            BUILD_ROOT="${GITHUB_WORKSPACE}/${MODULES_CLONE_DIR}/kernel_platform"
-
-            apply_variant_configs arch/arm64/configs/gki_defconfig
-            apply_variant_configs "${OFFICIAL_GKI_FRAGMENT}"
-
-            ccache -z || true
-
-            pushd "${BUILD_ROOT}"
-            VARIANT=gki BUILD_CONFIG="${OFFICIAL_BUILD_CONFIG}" build/build.sh 2>&1 | tee "${GITHUB_WORKSPACE}/${SOC}/build.log" || {
-              ccache -sv || true
-              echo "==== BUILD ERROR SUMMARY ===="
-              grep -nE ' error:|undefined reference|No rule to make target|fatal error:' "${GITHUB_WORKSPACE}/${SOC}/build.log" | tail -n 50 || true
-              echo "==== BUILD FAILED (last 200 lines) ===="
-              tail -n 200 "${GITHUB_WORKSPACE}/${SOC}/build.log" || true
-              exit 1
-            }
-            popd
-
-            OFFICIAL_OUT_DIR="$(find "${BUILD_ROOT}/out" -maxdepth 2 -type d -name msm-kernel | sort | head -n 1)"
-            if [[ -z "${OFFICIAL_OUT_DIR}" ]]; then
-              echo "::error::Could not locate the official kernel out directory under ${BUILD_ROOT}/out"
-              find "${BUILD_ROOT}/out" -maxdepth 3 -type d -print || true
-              exit 1
-            fi
-
-            rm -rf out
-            ln -sfn "${OFFICIAL_OUT_DIR}" out
-          else
-            apply_variant_configs arch/arm64/configs/gki_defconfig
-
-            make O=out gki_defconfig ${BUILD_CONFIGS}
-
-            apply_variant_configs out/.config
-
-            make O=out olddefconfig
-
-            ccache -z || true
-
-            make -j"$(nproc)" O=out Image 2>&1 | tee build.log || {
-              ccache -sv || true
-              echo "==== BUILD ERROR SUMMARY ===="
-              grep -nE ' error:|undefined reference|No rule to make target|fatal error:' build.log | tail -n 50 || true
-              echo "==== BUILD FAILED (last 200 lines) ===="
-              tail -n 200 build.log || true
-              exit 1
-            }
+            ACTIVE_BUILD_CONFIGS="vendor/${OFFICIAL_BUILD_TARGET}_GKI.config"
           fi
+
+          apply_variant_configs arch/arm64/configs/gki_defconfig
+
+          make O=out gki_defconfig ${ACTIVE_BUILD_CONFIGS}
+
+          apply_variant_configs out/.config
+
+          make O=out olddefconfig
+
+          ccache -z || true
+
+          make -j"$(nproc)" O=out Image 2>&1 | tee build.log || {
+            ccache -sv || true
+            echo "==== BUILD ERROR SUMMARY ===="
+            grep -nE ' error:|undefined reference|No rule to make target|fatal error:' build.log | tail -n 50 || true
+            echo "==== BUILD FAILED (last 200 lines) ===="
+            tail -n 200 build.log || true
+            exit 1
+          }
 
           if [[ "$KSU_TYPE" == *susfs* ]]; then
             require_config_enabled out/.config CONFIG_KSU_SUSFS
