@@ -60,6 +60,27 @@ setup_kernelsu_next() {
   setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$requested_ref" 1
 }
 
+setup_kernelsu_next_susfs() {
+  local requested_refs
+
+  case "${SUSFS_REF:-}" in
+    "gki-android14-6.1")
+      requested_refs="next-susfs-a14-6.1-dev legacy-susfs"
+      ;;
+    "gki-android13-5.15"|"gki-android14-5.15")
+      requested_refs="next-susfs-a13-5.15-dev legacy-susfs"
+      ;;
+    "gki-android13-5.10")
+      requested_refs="legacy-susfs"
+      ;;
+    *)
+      requested_refs="next-susfs-a13-5.15-dev next-susfs-a14-6.1-dev legacy-susfs"
+      ;;
+  esac
+
+  setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$requested_refs" 1
+}
+
 # Apply the chosen KSU preset using its upstream setup.sh / local clone flow.
 install_ksu_variant() {
   local ksu_type="$1"
@@ -77,6 +98,9 @@ install_ksu_variant() {
       ;;
     "KernelSU-Next")
       setup_kernelsu_next dev
+      ;;
+    "KernelSU-Next-with-susfs")
+      setup_kernelsu_next_susfs
       ;;
     "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-KPM")
       curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs \
