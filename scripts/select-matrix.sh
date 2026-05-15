@@ -21,6 +21,9 @@ case "$ROOT_SOLUTION" in
   "KernelSU-Next")
     BUILD_MATRIX='{"include":[{"build_label":"KernelSU-Next","ksu_type":"KernelSU-Next"}]}'
     ;;
+  "KernelSU-Next + susfs")
+    BUILD_MATRIX='{"include":[{"build_label":"KernelSU-Next + susfs","ksu_type":"KernelSU-Next-with-susfs"}]}'
+    ;;
   "KowSU")
     BUILD_MATRIX='{"include":[{"build_label":"KowSU","ksu_type":"KowSU"}]}'
     ;;

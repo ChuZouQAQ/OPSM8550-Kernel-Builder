@@ -32,7 +32,7 @@ Additional source presets:
 - Beginner-friendly workflow inputs that resolve to real repo, branch, SoC, and config values
 - AOSP Clang caching plus `ccache` reuse for faster repeat builds
 - Built-in support for `KernelSU`, `KernelSU-Next`, `KowSU`, and `ReSukiSU`
-- Platform-aware `susfs` branch selection for supported presets
+- Platform-aware `susfs` branch selection for supported KernelSU-Next and ReSukiSU presets
 - Source-level and binary-level `susfs` verification
 - Automatic `AnyKernel3` packaging, GitHub Release creation, and artifact upload
 
@@ -102,6 +102,7 @@ Available options:
 - `No root changes`
 - `Official KernelSU`
 - `KernelSU-Next`
+- `KernelSU-Next + susfs`
 - `KowSU`
 - `ReSukiSU`
 - `ReSukiSU + susfs`
@@ -136,7 +137,7 @@ Each build run goes through the same high-level flow:
 
 ## susfs Behavior
 
-For `ReSukiSU + susfs` presets, the workflow automatically selects a platform-aware `susfs4ksu` branch:
+For `KernelSU-Next + susfs` and `ReSukiSU + susfs` presets, the workflow automatically selects a platform-aware `susfs4ksu` branch:
 
 - `SM8450` -> `gki-android13-5.10`
 - `SM8550` + Android 13 style branches -> `gki-android13-5.15`
@@ -145,6 +146,7 @@ For `ReSukiSU + susfs` presets, the workflow automatically selects a platform-aw
 
 Additional safeguards:
 
+- `KernelSU-Next + susfs` uses upstream `KernelSU-Next/KernelSU-Next` SUSFS branches first, such as `next-susfs-a13-5.15-dev`, `next-susfs-a14-6.1-dev`, and `legacy-susfs`
 - `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS` is kept disabled by default for easier verification
 - source integration is verified before the full build continues
 - final binaries are checked for `susfs` signatures
@@ -164,7 +166,7 @@ The workflow also uploads:
 - built `Image`
 - final zip package
 - `susfs-source-proof.txt` when a `susfs` preset is used
-- `susfs-hook-proof.txt` when a `susfs` preset is used
+- `susfs-hook-proof.txt` when a ReSukiSU `susfs` preset is used
 - `susfs-proof.txt` when a `susfs` preset is used
 
 The same `susfs` diagnostics are also copied into the GitHub Actions job summary.
@@ -200,7 +202,6 @@ Main build dependencies installed by the workflow:
 
 ## Important Notes
 
-- `KernelSU-Next-with-susfs` is intentionally not exposed in this workflow.
 - The kernel repo and matching `-modules` repo must both provide the same branch.
 - Official OnePlus source uses a different repository naming and on-disk layout from community trees; the workflow now handles that automatically.
 - Some upstreams are community-maintained rather than official LineageOS repositories.

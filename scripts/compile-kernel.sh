@@ -123,8 +123,11 @@ if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
   grep -E '^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' out/.config || true
 fi
 
-if [[ "$KSU_TYPE" == *susfs* ]]; then
+if [[ "$KSU_TYPE" == ReSukiSU-with-susfs* ]]; then
   verify_resukisu_susfs_hook_mode
+fi
+
+if [[ "$KSU_TYPE" == *susfs* ]]; then
   verify_susfs_binary_presence
 fi
 

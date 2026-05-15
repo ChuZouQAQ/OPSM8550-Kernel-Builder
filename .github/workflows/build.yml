@@ -60,6 +60,7 @@ on:
           - No root changes
           - Official KernelSU
           - KernelSU-Next
+          - KernelSU-Next + susfs
           - KowSU
           - ReSukiSU
           - ReSukiSU + susfs
