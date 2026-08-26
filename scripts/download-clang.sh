@@ -8,6 +8,7 @@ set -euo pipefail
 : "${CLANG_VERSION:?CLANG_VERSION must be set}"
 
 declare -A CLANG_URLS=(
+  [clang-r596125]="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel/clang-r596125.tar.gz"
   [clang-r416183b1]="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-qpr3-release/clang-r416183b1.tar.gz"
   [clang-r450784d]="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android13-qpr3-release/clang-r450784d.tar.gz"
   [clang-r487747c]="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-qpr3-release/clang-r487747c.tar.gz"

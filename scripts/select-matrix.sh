@@ -30,12 +30,6 @@ case "$ROOT_SOLUTION" in
   "ReSukiSU + susfs")
     BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs","ksu_type":"ReSukiSU-with-susfs"}]}'
     ;;
-  "ReSukiSU + susfs + KPM")
-    BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs + KPM","ksu_type":"ReSukiSU-with-susfs-KPM"}]}'
-    ;;
-  "ReSukiSU + susfs (build both: with KPM and without KPM)")
-    BUILD_MATRIX='{"include":[{"build_label":"ReSukiSU + susfs","ksu_type":"ReSukiSU-with-susfs"},{"build_label":"ReSukiSU + susfs + KPM","ksu_type":"ReSukiSU-with-susfs-KPM"}]}'
-    ;;
   *)
     echo "::error::Unsupported root solution: $ROOT_SOLUTION"
     exit 1

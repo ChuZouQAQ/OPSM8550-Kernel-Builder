@@ -11,7 +11,7 @@ on:
         type: choice
         default: Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
         options:
-          - Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)
+          - Snapdragon 8 Gen 1 (SM8450 / OnePlus 10 Pro)
           - Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
           - Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)
       source_choice:
@@ -45,6 +45,7 @@ on:
         default: Recommended (auto-select based on branch)
         options:
           - Recommended (auto-select based on branch)
+          - clang-r596125 (Clang 22.0.2 / current AOSP mainline era)
           - clang-r563880c (Android 16 / LineageOS 23.2+ era)
           - clang-r547379 (Android 16 / LineageOS 23.0 era)
           - clang-r536225 (Android 15 / LineageOS 22.2 era)
@@ -63,8 +64,6 @@ on:
           - KowSU
           - ReSukiSU
           - ReSukiSU + susfs
-          - ReSukiSU + susfs + KPM
-          - ReSukiSU + susfs (build both: with KPM and without KPM)
 
 jobs:
   prepare:
@@ -83,7 +82,10 @@ jobs:
         id: select-matrix
         env:
           ROOT_SOLUTION: ${{ inputs.root_solution }}
-        run: bash scripts/select-matrix.sh
+        run: |
+          set -euo pipefail
+          bash -n scripts/*.sh scripts/lib/*.sh
+          bash scripts/select-matrix.sh
 
   Kernel_CI:
     name: Build ${{ matrix.build_label }}
@@ -194,7 +196,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: AnyKernel3
-          key: ${{ runner.os }}-anykernel3-${{ github.run_id }}
+          key: ${{ runner.os }}-anykernel3-${{ steps.resolve.outputs.anykernel_commit }}
           restore-keys: |
             ${{ runner.os }}-anykernel3-
 
@@ -233,11 +235,11 @@ jobs:
             "$IMAGE_FILE"
 
       - name: Publish susfs diagnostics
-        if: always()
+        if: always() && steps.resolve.outcome == 'success'
         run: bash scripts/publish-diagnostics.sh
 
       - name: Upload build artifacts
-        if: always()
+        if: always() && steps.resolve.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-${{ steps.resolve.outputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}

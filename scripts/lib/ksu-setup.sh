@@ -15,6 +15,7 @@ setup_kernelsu_repo() {
   local kconfig_source
   local ref
   local cloned=0
+  local actual_commit
   local refs_to_try
 
   driver_dir="$(detect_kernelsu_driver_dir)" || {
@@ -33,8 +34,19 @@ setup_kernelsu_repo() {
   for ref in $refs_to_try; do
     [[ -z "$ref" ]] && continue
 
-    if git clone --depth=1 --no-tags -b "$ref" "https://github.com/${owner}/${repo}.git" "$repo_dir"; then
-      echo "[+] Cloned ${owner}/${repo} branch '$ref'."
+    rm -rf "$repo_dir"
+    git init -q "$repo_dir"
+    git -C "$repo_dir" remote add origin "https://github.com/${owner}/${repo}.git"
+
+    if git -C "$repo_dir" fetch --depth=1 --no-tags origin "$ref" && \
+       git -C "$repo_dir" checkout -q --detach FETCH_HEAD; then
+      actual_commit="$(git -C "$repo_dir" rev-parse HEAD)"
+      if [[ "$ref" =~ ^[0-9a-f]{40}$ ]] && [[ "$actual_commit" != "$ref" ]]; then
+        echo "::error::${owner}/${repo} checkout '$actual_commit' does not match resolved commit '$ref'."
+        rm -rf "$repo_dir"
+        continue
+      fi
+      echo "[+] Cloned ${owner}/${repo} at ${actual_commit} (requested '$ref')."
       cloned=1
       break
     fi
@@ -53,14 +65,13 @@ setup_kernelsu_repo() {
 
   ensure_line_in_file "$driver_dir/Makefile" 'obj-$(CONFIG_KSU) += kernelsu/'
   insert_line_before_first_match "$driver_dir/Kconfig" "endmenu" "source \"$kconfig_source\""
+
+  KSU_REPO_DIR="$(readlink -f "$repo_dir")"
+  export KSU_REPO_DIR
+  export KSU_KERNEL_DIR="${KSU_REPO_DIR}/kernel"
 }
 
-setup_kernelsu_next() {
-  local requested_ref="$1"
-  setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$requested_ref" 1
-}
-
-# Apply the chosen KSU preset using its upstream setup.sh / local clone flow.
+# Apply the chosen KSU preset from the commit resolved during profile setup.
 install_ksu_variant() {
   local ksu_type="$1"
 
@@ -68,19 +79,20 @@ install_ksu_variant() {
     "None")
       ;;
     "Official-KernelSU")
-      curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs \
-        "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+      : "${KSU_COMMIT:?KSU_COMMIT must be resolved for Official KernelSU}"
+      setup_kernelsu_repo "tiann" "KernelSU" "$KSU_COMMIT"
       ;;
     "KowSU")
-      curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs \
-        "https://raw.githubusercontent.com/KOWX712/KernelSU/main/kernel/setup.sh" | bash -s master
+      : "${KSU_COMMIT:?KSU_COMMIT must be resolved for KowSU}"
+      setup_kernelsu_repo "KOWX712" "KernelSU" "$KSU_COMMIT"
       ;;
     "KernelSU-Next")
-      setup_kernelsu_next dev
+      : "${KSU_COMMIT:?KSU_COMMIT must be resolved for KernelSU-Next}"
+      setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$KSU_COMMIT"
       ;;
-    "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-KPM")
-      curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs \
-        "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
+    "ReSukiSU"|"ReSukiSU-with-susfs")
+      : "${KSU_COMMIT:?KSU_COMMIT must be resolved for ReSukiSU}"
+      setup_kernelsu_repo "ReSukiSU" "ReSukiSU" "$KSU_COMMIT"
       ;;
     *)
       echo "::error::Unsupported ksu_type: $ksu_type"

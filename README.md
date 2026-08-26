@@ -16,7 +16,7 @@ This repository only contains the CI pipeline and workflow UI. It does not ship 
 
 | Platform | SoC | Typical devices | Recommended source | Kernel config presets |
 | --- | --- | --- | --- | --- |
-| Snapdragon 8 Gen 1 | `sm8450` | OnePlus 10T / Ace Pro | `lineage-ovaltine-dev` | `vendor/waipio_GKI.config` + `vendor/oplus/waipio_GKI.config` + `vendor/debugfs.config` |
+| Snapdragon 8 Gen 1 | `sm8450` | OnePlus 10 Pro | `lineage-ovaltine-dev` | `vendor/waipio_GKI.config` + `vendor/oplus/waipio_GKI.config` + `vendor/debugfs.config` |
 | Snapdragon 8 Gen 2 | `sm8550` | OnePlus 11 / 12R | `LineageOS` | `vendor/kalama_GKI.config` + `vendor/oplus/kalama_GKI.config` + `vendor/debugfs.config` |
 | Snapdragon 8 Gen 3 | `sm8650` | OnePlus 12 | `LineageOS` | `vendor/pineapple_GKI.config` + `vendor/oplus/pineapple_GKI.config` |
 
@@ -44,7 +44,7 @@ The workflow is designed so you can build without memorizing the upstream repo l
 
 Choose one of:
 
-- `Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)`
+- `Snapdragon 8 Gen 1 (SM8450 / OnePlus 10 Pro)`
 - `Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)`
 - `Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)`
 
@@ -86,6 +86,7 @@ For `OnePlus official source`, the workflow now switches to the official layout 
 
 You can keep `Recommended (auto-select based on branch)` or force a manual preset:
 
+- `clang-r596125 (Clang 22.0.2 / current AOSP mainline era)`
 - `clang-r563880c (Android 16 / LineageOS 23.2+ era)`
 - `clang-r547379 (Android 16 / LineageOS 23.0 era)`
 - `clang-r536225 (Android 15 / LineageOS 22.2 era)`
@@ -105,10 +106,9 @@ Available options:
 - `KowSU`
 - `ReSukiSU`
 - `ReSukiSU + susfs`
-- `ReSukiSU + susfs + KPM`
-- `ReSukiSU + susfs (build both: with KPM and without KPM)`
 
-The last option launches two build jobs so you get both `ReSukiSU + susfs` variants in one run.
+KPM presets are not exposed because ReSukiSU removed KPM upstream in June 2026
+after determining that it was unmaintained and caused multiple bugs.
 
 ## Recommended Quick Start
 
@@ -125,7 +125,7 @@ The last option launches two build jobs so you get both `ReSukiSU + susfs` varia
 Each build run goes through the same high-level flow:
 
 1. Resolve your platform, source preset, branch, Clang, and root preset into a real build profile.
-2. Validate that both the kernel repo and matching `-modules` repo expose the selected branch.
+2. Validate that both the kernel repo and matching `-modules` repo expose the selected branch, then resolve every source input to an exact commit for the run.
 3. Restore cached Clang and `ccache`, or download the required AOSP Clang if needed.
 4. Clone the kernel source and matching modules tree.
    - official OnePlus source builds are re-laid out into the upstream `kernel_platform/msm-kernel` structure before compilation
@@ -201,7 +201,9 @@ Main build dependencies installed by the workflow:
 ## Important Notes
 
 - `KernelSU-Next-with-susfs` is intentionally not exposed in this workflow.
+- ReSukiSU KPM is intentionally not exposed because current ReSukiSU no longer supports it.
 - The kernel repo and matching `-modules` repo must both provide the same branch.
+- Kernel, modules, KernelSU, susfs, and AnyKernel3 inputs are recorded by commit in the job summary and susfs diagnostics.
 - Official OnePlus source uses a different repository naming and on-disk layout from community trees; the workflow now handles that automatically.
 - Some upstreams are community-maintained rather than official LineageOS repositories.
 - Release publishing depends on GitHub token permissions.

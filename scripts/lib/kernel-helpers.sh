@@ -36,6 +36,34 @@ insert_line_before_first_match() {
   mv "$tmp_file" "$file"
 }
 
+insert_block_before_first_match() {
+  local file="$1"
+  local match_line="$2"
+  local block="$3"
+  local marker="$4"
+  local tmp_file
+
+  grep -Fq "$marker" "$file" && return 0
+
+  tmp_file="$(mktemp)"
+  awk -v match_line="$match_line" -v block="$block" '
+    !inserted && $0 == match_line {
+      print block
+      inserted = 1
+    }
+    { print }
+    END {
+      if (!inserted) {
+        exit 1
+      }
+    }
+  ' "$file" > "$tmp_file" || {
+    rm -f "$tmp_file"
+    return 1
+  }
+  mv "$tmp_file" "$file"
+}
+
 detect_kernelsu_driver_dir() {
   if test -d "common/drivers"; then
     echo "common/drivers"
@@ -115,14 +143,6 @@ enable_ksu_common_configs() {
   enable_config_values "$config_file" CONFIG_TMPFS_XATTR
 }
 
-enable_resukisu_kpm_configs() {
-  local config_file="$1"
-  enable_config_values "$config_file" \
-    CONFIG_KPM \
-    CONFIG_KALLSYMS \
-    CONFIG_KALLSYMS_ALL
-}
-
 apply_variant_configs() {
   local config_file="$1"
 
@@ -134,9 +154,6 @@ apply_variant_configs() {
     enable_ksu_common_configs "$config_file"
   fi
 
-  if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
-    enable_resukisu_kpm_configs "$config_file"
-  fi
 }
 
 require_config_enabled() {

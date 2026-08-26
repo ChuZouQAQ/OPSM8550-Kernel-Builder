@@ -29,7 +29,7 @@ INPUT_KERNEL_BRANCH="${INPUT_KERNEL_BRANCH:-}"
 
 # ---- Platform ----------------------------------------------------------------
 case "$INPUT_PLATFORM" in
-  "Snapdragon 8 Gen 1 (SM8450 / OnePlus 10T / Ace Pro)")
+  "Snapdragon 8 Gen 1 (SM8450 / OnePlus 10 Pro)")
     SOC="sm8450"
     PLATFORM_SLUG="8gen1"
     PLATFORM_NAME="Snapdragon 8 Gen 1"
@@ -112,6 +112,7 @@ esac
 # ---- Clang preset ------------------------------------------------------------
 case "$INPUT_CLANG_CHOICE" in
   "Recommended (auto-select based on branch)")               CLANG_VERSION="" ;;
+  "clang-r596125 (Clang 22.0.2 / current AOSP mainline era)") CLANG_VERSION="clang-r596125" ;;
   "clang-r563880c (Android 16 / LineageOS 23.2+ era)")       CLANG_VERSION="clang-r563880c" ;;
   "clang-r547379 (Android 16 / LineageOS 23.0 era)")         CLANG_VERSION="clang-r547379" ;;
   "clang-r536225 (Android 15 / LineageOS 22.2 era)")         CLANG_VERSION="clang-r536225" ;;
@@ -132,7 +133,9 @@ SUSFS_PATCH_FILE=""
 if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
   KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
   MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${SOC}.git"
-  KERNEL_CLONE_DIR="${SOC}-modules/kernel_platform/msm-kernel"
+  # Clone as a sibling first. Cloning directly inside the modules checkout
+  # races with the parallel modules clone because the destinations overlap.
+  KERNEL_CLONE_DIR="${SOC}-kernel"
   MODULES_CLONE_DIR="${SOC}-modules"
 else
   KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
@@ -143,7 +146,7 @@ fi
 
 # ---- Branch resolution -------------------------------------------------------
 if [[ "$INPUT_BRANCH_MODE" == "Use the recommended branch automatically" ]]; then
-  KERNEL_BRANCH="$(git ls-remote --symref "$KERNEL_REPO" HEAD | awk '/^ref:/ {sub("refs/heads/","",$2); print $2; exit}')"
+  KERNEL_BRANCH="$(git ls-remote --symref "$KERNEL_REPO" HEAD 2>/dev/null | awk '/^ref:/ {sub("refs/heads/","",$2); print $2; exit}' || true)"
   if [[ -z "$KERNEL_BRANCH" ]]; then
     echo "::error::Could not detect the default branch from $KERNEL_REPO"
     exit 1
@@ -178,7 +181,46 @@ if [[ -z "$CLANG_VERSION" ]]; then
   esac
 fi
 
+# ---- Root/add-on repositories ------------------------------------------------
+KSU_REPO=""
+KSU_REF=""
+KSU_COMMIT=""
+case "$KSU_TYPE" in
+  None)
+    ;;
+  Official-KernelSU)
+    KSU_REPO="https://github.com/tiann/KernelSU.git"
+    KSU_REF="main"
+    ;;
+  KernelSU-Next)
+    KSU_REPO="https://github.com/KernelSU-Next/KernelSU-Next.git"
+    KSU_REF="dev"
+    ;;
+  KowSU)
+    KSU_REPO="https://github.com/KOWX712/KernelSU.git"
+    KSU_REF="master"
+    ;;
+  ReSukiSU*)
+    KSU_REPO="https://github.com/ReSukiSU/ReSukiSU.git"
+    KSU_REF="main"
+    ;;
+  *)
+    echo "::error::No upstream repository mapping is configured for $KSU_TYPE"
+    exit 1
+    ;;
+esac
+
+if [[ -n "$KSU_REPO" ]]; then
+  KSU_COMMIT="$(git ls-remote --exit-code "$KSU_REPO" "refs/heads/${KSU_REF}" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+  if [[ ! "$KSU_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "::error::Could not resolve $KSU_REPO branch '$KSU_REF' to a commit."
+    exit 1
+  fi
+fi
+
 # ---- susfs reference ---------------------------------------------------------
+SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu.git"
+SUSFS_COMMIT=""
 if [[ "$KSU_TYPE" == *susfs* ]]; then
   case "$SOC" in
     sm8450)
@@ -205,17 +247,31 @@ if [[ "$KSU_TYPE" == *susfs* ]]; then
       ;;
   esac
   SUSFS_PATCH_FILE="50_add_susfs_in_${SUSFS_REF}.patch"
+  SUSFS_COMMIT="$(git ls-remote --exit-code "$SUSFS_REPO" "refs/heads/${SUSFS_REF}" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+  if [[ ! "$SUSFS_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "::error::Could not resolve susfs branch '$SUSFS_REF' to a commit."
+    exit 1
+  fi
 fi
 
 # ---- Repo/branch availability checks -----------------------------------------
-if ! git ls-remote --exit-code --heads "$KERNEL_REPO" "$KERNEL_BRANCH" >/dev/null 2>&1; then
+KERNEL_COMMIT="$(git ls-remote --exit-code --heads "$KERNEL_REPO" "$KERNEL_BRANCH" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+if [[ ! "$KERNEL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
   echo "::error::Branch '$KERNEL_BRANCH' was not found in $KERNEL_REPO"
   exit 1
 fi
 
-if ! git ls-remote --exit-code --heads "$MODULES_REPO" "$KERNEL_BRANCH" >/dev/null 2>&1; then
+MODULES_COMMIT="$(git ls-remote --exit-code --heads "$MODULES_REPO" "$KERNEL_BRANCH" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+if [[ ! "$MODULES_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
   echo "::error::Branch '$KERNEL_BRANCH' was not found in $MODULES_REPO"
   echo "::error::This workflow requires the matching modules repository for defconfig/Kconfig resolution."
+  exit 1
+fi
+
+ANYKERNEL_REPO="https://github.com/Kernel-SU/AnyKernel3.git"
+ANYKERNEL_COMMIT="$(git ls-remote --exit-code "$ANYKERNEL_REPO" HEAD 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
+if [[ ! "$ANYKERNEL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "::error::Could not resolve AnyKernel3 HEAD to a commit."
   exit 1
 fi
 
@@ -252,10 +308,19 @@ esac
   echo "OFFICIAL_BUILD_TARGET=$OFFICIAL_BUILD_TARGET"
   echo "OFFICIAL_GKI_FRAGMENT=$OFFICIAL_GKI_FRAGMENT"
   echo "KERNEL_BRANCH=$KERNEL_BRANCH"
+  echo "KERNEL_COMMIT=$KERNEL_COMMIT"
+  echo "MODULES_COMMIT=$MODULES_COMMIT"
   echo "CLANG_VERSION=$CLANG_VERSION"
   echo "KSU_TYPE=$KSU_TYPE"
+  echo "KSU_REPO=$KSU_REPO"
+  echo "KSU_REF=$KSU_REF"
+  echo "KSU_COMMIT=$KSU_COMMIT"
+  echo "SUSFS_REPO=$SUSFS_REPO"
   echo "SUSFS_REF=$SUSFS_REF"
+  echo "SUSFS_COMMIT=$SUSFS_COMMIT"
   echo "SUSFS_PATCH_FILE=$SUSFS_PATCH_FILE"
+  echo "ANYKERNEL_REPO=$ANYKERNEL_REPO"
+  echo "ANYKERNEL_COMMIT=$ANYKERNEL_COMMIT"
 } >> "$GITHUB_ENV"
 
 {
@@ -267,9 +332,14 @@ esac
   echo "source_slug=$SOURCE_SLUG"
   echo "source_layout=$SOURCE_LAYOUT"
   echo "kernel_branch=$KERNEL_BRANCH"
+  echo "kernel_commit=$KERNEL_COMMIT"
+  echo "modules_commit=$MODULES_COMMIT"
   echo "clang_version=$CLANG_VERSION"
   echo "ksu_type=$KSU_TYPE"
+  echo "ksu_commit=$KSU_COMMIT"
   echo "susfs_ref=$SUSFS_REF"
+  echo "susfs_commit=$SUSFS_COMMIT"
+  echo "anykernel_commit=$ANYKERNEL_COMMIT"
 } >> "$GITHUB_OUTPUT"
 
 {
@@ -277,9 +347,15 @@ esac
   echo "- Platform: $PLATFORM_NAME ($SOC)"
   echo "- Source: $SOURCE_NAME"
   echo "- Branch: $KERNEL_BRANCH"
+  echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
+  echo "- Modules commit: \`${MODULES_COMMIT}\`"
   echo "- Clang: $CLANG_VERSION"
   echo "- Root solution: $KSU_TYPE"
-  if [[ -n "$SUSFS_REF" ]]; then
-    echo "- susfs branch: $SUSFS_REF"
+  if [[ -n "$KSU_COMMIT" ]]; then
+    echo "- KernelSU commit: \`${KSU_COMMIT}\` ($KSU_REF)"
   fi
+  if [[ -n "$SUSFS_REF" ]]; then
+    echo "- susfs: $SUSFS_REF (\`${SUSFS_COMMIT}\`)"
+  fi
+  echo "- AnyKernel3 commit: \`${ANYKERNEL_COMMIT}\`"
 } >> "$GITHUB_STEP_SUMMARY"

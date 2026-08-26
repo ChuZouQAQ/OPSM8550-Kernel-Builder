@@ -17,7 +17,11 @@
 #   OFFICIAL_BUILD_TARGET
 #   KSU_TYPE
 #   KERNEL_BRANCH
+#   KERNEL_COMMIT
+#   MODULES_COMMIT
+#   KSU_COMMIT         (required for rooted variants)
 #   SUSFS_REF          (optional; only for susfs variants)
+#   SUSFS_COMMIT       (optional; only for susfs variants)
 #   SUSFS_PATCH_FILE   (optional; only for susfs variants)
 #
 set -euo pipefail
@@ -73,8 +77,9 @@ install_ksu_variant "${KSU_TYPE}"
 # ---- susfs -------------------------------------------------------------------
 if [[ "$KSU_TYPE" == *susfs* ]]; then
   : "${SUSFS_REF:?}"
+  : "${SUSFS_COMMIT:?}"
   : "${SUSFS_PATCH_FILE:?}"
-  apply_susfs_full "$SUSFS_REF" "$SUSFS_PATCH_FILE"
+  apply_susfs_full "$SUSFS_REF" "$SUSFS_COMMIT" "$SUSFS_PATCH_FILE"
   verify_susfs_source_integration "${KSU_KERNEL_DIR}"
 fi
 
@@ -113,14 +118,6 @@ if [[ "$KSU_TYPE" == *susfs* ]]; then
   require_config_disabled out/.config CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
   echo "==== SUSFS CONFIG SNAPSHOT ===="
   grep -E '^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_TMPFS_XATTR=' out/.config || true
-fi
-
-if [[ "$KSU_TYPE" == "ReSukiSU-with-susfs-KPM" ]]; then
-  require_config_enabled out/.config CONFIG_KPM
-  require_config_enabled out/.config CONFIG_KALLSYMS
-  require_config_enabled out/.config CONFIG_KALLSYMS_ALL
-  echo "==== RESUKISU KPM CONFIG SNAPSHOT ===="
-  grep -E '^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' out/.config || true
 fi
 
 if [[ "$KSU_TYPE" == *susfs* ]]; then

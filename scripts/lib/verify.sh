@@ -83,7 +83,11 @@ verify_susfs_source_integration() {
   {
     echo "==== SUSFS SOURCE PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_commit=${MODULES_COMMIT}"
+    echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
+    echo "susfs_commit=${SUSFS_COMMIT}"
     echo "susfs_patch=${SUSFS_PATCH_FILE}"
     grep -Fn 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || true
     grep -n 'ksu_handle_sys_reboot' kernel/reboot.c | head -n 5 || true
@@ -115,7 +119,11 @@ verify_susfs_binary_presence() {
   {
     echo "==== SUSFS BINARY PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_commit=${MODULES_COMMIT}"
+    echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
+    echo "susfs_commit=${SUSFS_COMMIT}"
     echo "susfs_patch=${SUSFS_PATCH_FILE}"
     if [[ -f out/System.map ]]; then
       grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map | head -n 20 || true
@@ -150,7 +158,11 @@ verify_resukisu_susfs_hook_mode() {
   {
     echo "==== RESUKISU SUSFS HOOK PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_commit=${MODULES_COMMIT}"
+    echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
+    echo "susfs_commit=${SUSFS_COMMIT}"
     grep -nE 'using SUSFS_INLINE_HOOK|using SuSFS Inline hook|using KSU_TRACEPOINT_HOOK|using Tracepoint Syscall Redirect Hook|using KSU_MANUAL_HOOK|using Manual Hook' build.log || true
   } | tee susfs-hook-proof.txt
 }

@@ -6,20 +6,76 @@
 
 apply_susfs_task_mmu_fix() {
   local file="fs/proc/task_mmu.c"
+  local block
 
   if grep -q 'susfs_def.h' "$file"; then
     echo "[+] task_mmu.c already includes susfs_def.h."
     return 0
   fi
 
-  if grep -q '^#include <linux/pkeys.h>$' "$file"; then
-    sed -i '/^#include <linux\/pkeys.h>$/a #ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs_def.h>\n#endif' "$file"
+  block=$'#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)\n#include <linux/susfs_def.h>\n#endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)\n'
+
+  if insert_block_before_first_match "$file" '#include <asm/elf.h>' "$block" 'susfs_def.h'; then
     echo "[+] Applied fallback susfs include fix to task_mmu.c."
     return 0
   fi
 
   echo "[-] Could not find a stable insertion point in $file."
   return 1
+}
+
+apply_susfs_namespace_fix() {
+  local file="fs/namespace.c"
+  local block
+
+  if grep -q '^#include <linux/susfs_def.h>$' "$file" && \
+     grep -q '^extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;$' "$file" && \
+     grep -q '^#define CL_COPY_MNT_NS ' "$file"; then
+    echo "[+] namespace.c already contains the susfs mount declarations."
+    return 0
+  fi
+
+  if grep -qE '^#include <linux/susfs_def.h>$|^extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;$|^#define CL_COPY_MNT_NS ' "$file"; then
+    echo "[-] Refusing to modify a partially applied susfs declaration block in $file."
+    return 1
+  fi
+
+  block=$'#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n#include <linux/susfs_def.h>\n#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n\n#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\nextern bool susfs_is_current_ksu_domain(void);\nextern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;\n\n#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */\n\n#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n'
+
+  if insert_block_before_first_match "$file" '/* Maximum number of mounts in a mount namespace */' "$block" 'extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;'; then
+    echo "[+] Applied fallback susfs declaration fix to namespace.c."
+    return 0
+  fi
+
+  echo "[-] Could not find a stable insertion point in $file."
+  return 1
+}
+
+resolve_known_susfs_rejects() {
+  local reject
+  local unknown=0
+  local reject_files=()
+
+  mapfile -t reject_files < <(find . -name '*.rej' -print | sort)
+  [[ "${#reject_files[@]}" -gt 0 ]] || return 1
+
+  for reject in "${reject_files[@]}"; do
+    case "$reject" in
+      ./fs/proc/task_mmu.c.rej)
+        grep -q 'susfs_def.h' "$reject" && apply_susfs_task_mmu_fix || unknown=1
+        ;;
+      ./fs/namespace.c.rej)
+        grep -q 'susfs_def.h' "$reject" && apply_susfs_namespace_fix || unknown=1
+        ;;
+      *)
+        unknown=1
+        ;;
+    esac
+  done
+
+  [[ "$unknown" -eq 0 ]] || return 1
+  rm -f "${reject_files[@]}"
+  echo "[+] Resolved ${#reject_files[@]} known susfs include/declaration drift reject(s)."
 }
 
 patch_susfs_kernelsu_layout() {
@@ -168,8 +224,11 @@ EOF_COMPAT
 # apply the kernel-side patch with drift recovery.
 apply_susfs_full() {
   local susfs_ref="$1"
-  local susfs_patch_file="$2"
+  local susfs_commit="$2"
+  local susfs_patch_file="$3"
   local ksu_driver_dir ksu_kernel_dir ksu_repo_dir
+
+  : "${SUSFS_REPO:?SUSFS_REPO must be resolved before applying susfs}"
 
   ksu_driver_dir="$(detect_kernelsu_driver_dir)" || {
     echo "::error::drivers directory not found before applying susfs"
@@ -178,11 +237,18 @@ apply_susfs_full() {
   ksu_kernel_dir="$(readlink -f "${ksu_driver_dir}/kernelsu")"
   ksu_repo_dir="$(dirname "${ksu_kernel_dir}")"
 
-  git clone --depth=1 --no-tags -b "$susfs_ref" \
-    https://gitlab.com/simonpunk/susfs4ksu.git susfs
+  rm -rf susfs
+  git init -q susfs
+  git -C susfs remote add origin "$SUSFS_REPO"
+  git -C susfs fetch --depth=1 --no-tags origin "$susfs_commit"
+  git -C susfs checkout -q --detach FETCH_HEAD
+  test "$(git -C susfs rev-parse HEAD)" = "$susfs_commit" || {
+    echo "::error::susfs checkout does not match resolved commit $susfs_commit ($susfs_ref)."
+    exit 1
+  }
 
   (
-    cd susfs
+    cd susfs || exit 1
     cp "./kernel_patches/${susfs_patch_file}" ..
     cp ./kernel_patches/fs/* ../fs/
     cp ./kernel_patches/include/linux/* ../include/linux/
@@ -208,17 +274,9 @@ apply_susfs_full() {
   }
 
   if ! patch -p1 < "${susfs_patch_file}"; then
-    echo "[!] susfs patch reported conflicts, checking for known task_mmu.c drift..."
+    echo "[!] susfs patch reported conflicts, checking for known vendor include drift..."
 
-    local reject_files reject_count
-    reject_files="$(find . -name "*.rej" | sort)"
-    reject_count="$(printf '%s\n' "$reject_files" | sed '/^$/d' | wc -l)"
-
-    if [[ "$reject_count" -eq 1 ]] && [[ "$reject_files" == "./fs/proc/task_mmu.c.rej" ]] && grep -q 'susfs_def.h' ./fs/proc/task_mmu.c.rej; then
-      apply_susfs_task_mmu_fix
-      rm -f ./fs/proc/task_mmu.c.rej
-      echo "[+] Resolved known susfs task_mmu.c patch drift."
-    else
+    if ! resolve_known_susfs_rejects; then
       echo "==== PATCH FAILED ===="
       echo "==== REJECT FILES ===="
       find . -name "*.rej" -print -exec sh -c 'echo "---- $1 ----"; cat "$1"' _ {} \;

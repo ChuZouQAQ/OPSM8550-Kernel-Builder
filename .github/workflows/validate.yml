@@ -1,0 +1,48 @@
+name: Validate build pipeline
+
+on:
+  push:
+    paths:
+      - .github/workflows/**
+      - scripts/**
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - scripts/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Validate shell scripts
+        run: |
+          set -euo pipefail
+          bash -n scripts/*.sh scripts/lib/*.sh
+          shellcheck --severity=warning --external-sources -P SCRIPTDIR scripts/*.sh scripts/lib/*.sh
+
+      - name: Validate GitHub Actions workflows
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          ARCHIVE="${RUNNER_TEMP}/actionlint.tar.gz"
+          curl --retry 5 --retry-delay 3 --retry-all-errors -fLSs \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o "$ARCHIVE"
+          echo "${ACTIONLINT_SHA256}  ${ARCHIVE}" | sha256sum --check
+          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP" actionlint
+          "${RUNNER_TEMP}/actionlint" -color

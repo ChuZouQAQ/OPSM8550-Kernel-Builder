@@ -6,6 +6,8 @@
 #   SOC
 #   KSU_TYPE
 #   KERNEL_BRANCH
+#   KERNEL_COMMIT
+#   MODULES_COMMIT
 #   GITHUB_STEP_SUMMARY
 #
 # Optional env:
@@ -36,15 +38,21 @@ append_file_block() {
   echo
   echo "- Root solution: ${KSU_TYPE}"
   echo "- Branch: ${KERNEL_BRANCH}"
+  echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
+  echo "- Modules commit: \`${MODULES_COMMIT}\`"
+  if [[ -n "${KSU_COMMIT:-}" ]]; then
+    echo "- KernelSU commit: \`${KSU_COMMIT}\`"
+  fi
   if [[ -n "${SUSFS_REF:-}" ]]; then
     echo "- susfs ref: ${SUSFS_REF}"
+    echo "- susfs commit: \`${SUSFS_COMMIT}\`"
   fi
   echo
 
   if [[ -f "${SOC}/out/.config" ]]; then
     echo '#### .config snapshot'
     echo '```text'
-    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_KPM=|^CONFIG_KALLSYMS=|^CONFIG_KALLSYMS_ALL=' "${SOC}/out/.config" || true
+    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK' "${SOC}/out/.config" || true
     echo '```'
     echo
   fi
