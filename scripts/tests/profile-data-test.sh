@@ -28,6 +28,7 @@ mapfile -t profiles < <(list_build_profiles)
 assert_eq "10" "${#profiles[@]}" "profile count"
 
 WORKFLOW_FILE="${SCRIPT_DIR}/../../.github/workflows/build.yml"
+UPSTREAM_HEALTH_WORKFLOW="${SCRIPT_DIR}/../../.github/workflows/upstream-health.yml"
 COMPILE_SCRIPT="${SCRIPT_DIR}/../compile-kernel.sh"
 for profile in "${profiles[@]}"; do
   grep -Fq -- "- ${profile}" "$WORKFLOW_FILE" \
@@ -42,6 +43,8 @@ if grep -Fq 'CCACHE_PREFIX' "$WORKFLOW_FILE"; then
 fi
 grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
   || fail "workflow is missing the cache-key-only ccache prefix"
+grep -Eq '^[[:space:]]+lld \\' "$UPSTREAM_HEALTH_WORKFLOW" \
+  || fail "upstream health workflow is missing the LLVM linker"
 
 expected_socs=(sm7550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
 expected_upstream_socs=(sm8550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)

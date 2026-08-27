@@ -72,6 +72,7 @@ jobs:
             flex \
             libelf-dev \
             libssl-dev \
+            lld \
             patch
 
       - name: Apply integrations and validate config
