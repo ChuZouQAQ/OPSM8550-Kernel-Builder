@@ -41,7 +41,9 @@ else
   KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
   MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}-modules.git"
   KERNEL_CLONE_DIR="${SOC}"
-  MODULES_CLONE_DIR="${SOC}-modules"
+  # Vendor kernel symlinks point to the upstream repository stem, which can
+  # intentionally differ from the marketed SoC (Nord CE4: sm7550 -> sm8550).
+  MODULES_CLONE_DIR="${UPSTREAM_SOC}-modules"
 fi
 
 if [[ "$INPUT_BRANCH_MODE" == "Use the recommended branch automatically" ]]; then
