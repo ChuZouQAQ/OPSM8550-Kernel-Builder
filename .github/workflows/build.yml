@@ -114,7 +114,7 @@ jobs:
           ARTIFACT_NAME="kernel-package-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           DIAGNOSTICS_NAME="kernel-diagnostics-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           RELEASE_NAME="${PROFILE_ID}_${KSU_TYPE}_r${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-          CCACHE_PREFIX="${RUNNER_OS}-ccache-v2-${SOC}-${SOURCE_SLUG}-${PROFILE_ID}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}"
+          CCACHE_KEY_PREFIX="${RUNNER_OS}-ccache-v2-${SOC}-${SOURCE_SLUG}-${PROFILE_ID}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}"
           CCACHE_EPOCH="$(date -u +'%G-W%V')"
           {
             echo "BUILD_TIMESTAMP=${BUILD_TIMESTAMP}"
@@ -122,8 +122,8 @@ jobs:
             echo "ARTIFACT_NAME=${ARTIFACT_NAME}"
             echo "DIAGNOSTICS_NAME=${DIAGNOSTICS_NAME}"
             echo "RELEASE_NAME=${RELEASE_NAME}"
-            echo "CCACHE_PREFIX=${CCACHE_PREFIX}"
-            echo "CCACHE_KEY=${CCACHE_PREFIX}-${CCACHE_EPOCH}"
+            echo "CCACHE_KEY_PREFIX=${CCACHE_KEY_PREFIX}"
+            echo "CCACHE_KEY=${CCACHE_KEY_PREFIX}-${CCACHE_EPOCH}"
           } >> "$GITHUB_ENV"
           {
             echo "artifact_name=${ARTIFACT_NAME}"
@@ -146,7 +146,7 @@ jobs:
           path: .ccache
           key: ${{ env.CCACHE_KEY }}
           restore-keys: |
-            ${{ env.CCACHE_PREFIX }}-
+            ${{ env.CCACHE_KEY_PREFIX }}-
             ${{ runner.os }}-ccache-v2-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-
             ${{ runner.os }}-ccache-v2-${{ steps.resolve.outputs.soc }}-
 

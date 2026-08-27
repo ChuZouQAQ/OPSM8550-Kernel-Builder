@@ -37,6 +37,11 @@ grep -Fq '"CC=ccache clang"' "$COMPILE_SCRIPT" \
   || fail "compile script is not passing ccache on the make command line"
 grep -Fq 'KBUILD_BUILD_TIMESTAMP=' "$COMPILE_SCRIPT" \
   || fail "compile script is missing deterministic Kbuild metadata"
+if grep -Fq 'CCACHE_PREFIX' "$WORKFLOW_FILE"; then
+  fail "workflow must not export ccache's reserved CCACHE_PREFIX variable"
+fi
+grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
+  || fail "workflow is missing the cache-key-only ccache prefix"
 
 expected_socs=(sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
 expected_devices=(negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
