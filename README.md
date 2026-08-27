@@ -1,9 +1,9 @@
 # OnePlus Snapdragon Kernel Builder
 
-GitHub Actions pipeline for building OnePlus Snapdragon 8 Gen 1, 8 Gen 2,
-and 8 Gen 3 kernels. The repository contains the build pipeline, validation,
-packaging, and release automation; kernel sources are resolved from upstream
-repositories at build time.
+GitHub Actions pipeline for building selected OnePlus Snapdragon 7 Gen 3,
+8 Gen 1, 8 Gen 2, and 8 Gen 3 kernels. The repository contains the build
+pipeline, validation, packaging, and release automation; kernel sources are
+resolved from upstream repositories at build time.
 
 ## Supported build profiles
 
@@ -13,6 +13,7 @@ and source independently.
 
 | SoC | Target device | AnyKernel accepted device IDs | Source preset |
 | --- | --- | --- | --- |
+| `sm7550` | OnePlus Nord CE4 | `benz`, `OP5D3FL1`, `CPH2613` | Nord CE4 development |
 | `sm8450` | OnePlus 10 Pro | `negroni`, `OP516EL1`, `OP516FL1` | OnePlus official |
 | `sm8450` | OnePlus 10T / Ace Pro | `ovaltine`, `OP5551L1`, `OP5552L1` | LineageOS community |
 | `sm8550` | OnePlus 11 | `salami`, `OP591BL1`, `OP594DL1` | OnePlus official |
@@ -25,6 +26,11 @@ and source independently.
 
 The OnePlus 10T community source is intentionally labeled `ovaltine`; it is
 not presented as a OnePlus 10 Pro source.
+
+The Nord CE4 source project stores its SM7550/crow device support in
+`sm8550`-named kernel and modules repositories and builds it with the Kalama
+GKI fragments. The profile keeps the real `sm7550` device identity in release
+metadata while resolving that upstream naming explicitly.
 
 Every package accepts both its custom-ROM codename and the device-specific
 stock board IDs published by the corresponding device tree. Generic SoC board
@@ -148,15 +154,15 @@ Pushes and pull requests run:
 
 - Bash syntax checks
 - ShellCheck at warning severity
-- offline tests for all nine profile mappings, root mappings, Clang selection,
+- offline tests for all ten profile mappings, root mappings, Clang selection,
   SUSFS selection/version floor, NoMount selection/wiring, Android version
   inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
-resolves exact commits for all nine profiles and performs ReSukiSU + SUSFS +
-NoMount patch/config smoke tests on representative SM8450, SM8550, and SM8650
-sources.
+resolves exact commits for all ten profiles and performs ReSukiSU + SUSFS +
+NoMount patch/config smoke tests on representative SM7550, SM8450, SM8550,
+and SM8650 sources.
 
 ## Important limitations
 

@@ -35,6 +35,7 @@ jobs:
       max-parallel: 3
       matrix:
         profile:
+          - SM7550 | OnePlus Nord CE4 | development
           - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
           - SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
           - SM8650 | OnePlus 12 | LineageOS (recommended)

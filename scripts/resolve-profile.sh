@@ -33,13 +33,13 @@ case "$INPUT_BUILD_MODE" in
 esac
 
 if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
-  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
-  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${SOC}.git"
+  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
+  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${UPSTREAM_SOC}.git"
   KERNEL_CLONE_DIR="${SOC}-kernel"
   MODULES_CLONE_DIR="${SOC}-modules"
 else
-  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}.git"
-  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${SOC}-modules.git"
+  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
+  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}-modules.git"
   KERNEL_CLONE_DIR="${SOC}"
   MODULES_CLONE_DIR="${SOC}-modules"
 fi
@@ -166,6 +166,10 @@ case "$KERNEL_SOURCE" in
     [[ "$KERNEL_BRANCH" == lineage-* || "$KERNEL_BRANCH" == sixteen* ]] \
       || echo "::warning::Unexpected OnePlus 12R development branch: '$KERNEL_BRANCH'."
     ;;
+  OnePlus-Nord-CE4-development)
+    [[ "$KERNEL_BRANCH" == lineage-* || "$KERNEL_BRANCH" == sixteen* || "$KERNEL_BRANCH" == seventeen* ]] \
+      || echo "::warning::Unexpected OnePlus Nord CE4 development branch: '$KERNEL_BRANCH'."
+    ;;
   crdroidandroid)
     echo "Note: crDroid branch naming may differ from LineageOS."
     ;;
@@ -179,6 +183,7 @@ esac
   echo "SUPPORTED_ANDROID_VERSIONS=$SUPPORTED_ANDROID_VERSIONS"
   echo "BUILD_MODE=$INPUT_BUILD_MODE"
   echo "SOC=$SOC"
+  echo "UPSTREAM_SOC=$UPSTREAM_SOC"
   echo "PLATFORM_SLUG=$PLATFORM_SLUG"
   echo "PLATFORM_NAME=$PLATFORM_NAME"
   echo "BUILD_CONFIGS=$BUILD_CONFIGS"
@@ -220,6 +225,7 @@ esac
   echo "supported_android_versions=$SUPPORTED_ANDROID_VERSIONS"
   echo "build_mode=$INPUT_BUILD_MODE"
   echo "soc=$SOC"
+  echo "upstream_soc=$UPSTREAM_SOC"
   echo "platform_slug=$PLATFORM_SLUG"
   echo "platform_name=$PLATFORM_NAME"
   echo "kernel_source=$KERNEL_SOURCE"

@@ -8,6 +8,7 @@
 
 list_build_profiles() {
   printf '%s\n' \
+    "SM7550 | OnePlus Nord CE4 | development" \
     "SM8450 | OnePlus 10 Pro | OnePlus official" \
     "SM8450 | OnePlus 10T / Ace Pro | LineageOS community" \
     "SM8550 | OnePlus 11 | OnePlus official" \
@@ -23,6 +24,15 @@ resolve_build_profile() {
   local profile="$1"
 
   case "$profile" in
+    "SM7550 | OnePlus Nord CE4 | development")
+      PROFILE_ID="sm7550-oneplus-nord-ce4-dev"
+      SOC="sm7550"
+      TARGET_NAME="OnePlus Nord CE4"
+      DEVICE_CODENAMES="benz"
+      DEVICE_NAMES="benz OP5D3FL1 CPH2613"
+      KERNEL_SOURCE="OnePlus-Nord-CE4-development"
+      SOURCE_LAYOUT="community-flat"
+      ;;
     "SM8450 | OnePlus 10 Pro | OnePlus official")
       PROFILE_ID="sm8450-oneplus10pro-official"
       SOC="sm8450"
@@ -110,7 +120,21 @@ resolve_build_profile() {
       ;;
   esac
 
+  UPSTREAM_SOC="$SOC"
+  if [[ "$KERNEL_SOURCE" == "OnePlus-Nord-CE4-development" ]]; then
+    # The CE4 project intentionally carries its SM7550/crow support in
+    # sm8550-named kernel and modules repositories.
+    UPSTREAM_SOC="sm8550"
+  fi
+
   case "$SOC" in
+    sm7550)
+      PLATFORM_SLUG="7gen3"
+      PLATFORM_NAME="Snapdragon 7 Gen 3"
+      BUILD_CONFIGS="vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config"
+      OFFICIAL_BUILD_TARGET="kalama"
+      OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/kalama_GKI.config"
+      ;;
     sm8450)
       PLATFORM_SLUG="8gen1"
       PLATFORM_NAME="Snapdragon 8 Gen 1"
@@ -154,6 +178,10 @@ resolve_build_profile() {
     OnePlus12R-development)
       SOURCE_NAME="OnePlus 12R development"
       SOURCE_SLUG="oneplus12r-dev"
+      ;;
+    OnePlus-Nord-CE4-development)
+      SOURCE_NAME="OnePlus Nord CE4 development"
+      SOURCE_SLUG="oneplus-nord-ce4-dev"
       ;;
   esac
 }
@@ -213,6 +241,9 @@ resolve_susfs_settings() {
   local branch="$2"
 
   case "$soc" in
+    sm7550)
+      SUSFS_REF="gki-android14-5.15"
+      ;;
     sm8450)
       SUSFS_REF="gki-android13-5.10"
       ;;

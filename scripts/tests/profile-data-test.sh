@@ -25,7 +25,7 @@ assert_eq() {
 
 profiles=()
 mapfile -t profiles < <(list_build_profiles)
-assert_eq "9" "${#profiles[@]}" "profile count"
+assert_eq "10" "${#profiles[@]}" "profile count"
 
 WORKFLOW_FILE="${SCRIPT_DIR}/../../.github/workflows/build.yml"
 COMPILE_SCRIPT="${SCRIPT_DIR}/../compile-kernel.sh"
@@ -43,13 +43,15 @@ fi
 grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
   || fail "workflow is missing the cache-key-only ccache prefix"
 
-expected_socs=(sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
-expected_codenames=(negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
-expected_devices=("negroni OP516EL1 OP516FL1" "ovaltine OP5551L1 OP5552L1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1")
+expected_socs=(sm7550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
+expected_upstream_socs=(sm8550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
+expected_codenames=(benz negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
+expected_devices=("benz OP5D3FL1 CPH2613" "negroni OP516EL1 OP516FL1" "ovaltine OP5551L1 OP5552L1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1")
 
 for i in "${!profiles[@]}"; do
   resolve_build_profile "${profiles[$i]}"
   assert_eq "${expected_socs[$i]}" "$SOC" "${profiles[$i]} SoC"
+  assert_eq "${expected_upstream_socs[$i]}" "$UPSTREAM_SOC" "${profiles[$i]} upstream SoC"
   assert_eq "${expected_codenames[$i]}" "$DEVICE_CODENAMES" "${profiles[$i]} codenames"
   assert_eq "${expected_devices[$i]}" "$DEVICE_NAMES" "${profiles[$i]} devices"
   [[ -n "$PROFILE_ID" && -n "$BUILD_CONFIGS" && -n "$SOURCE_SLUG" ]] \
@@ -72,6 +74,8 @@ resolve_susfs_settings sm8550 lineage-20.0
 assert_eq "gki-android13-5.15" "$SUSFS_REF" "Android 13 susfs"
 resolve_susfs_settings sm8550 lineage-23.2
 assert_eq "gki-android14-5.15" "$SUSFS_REF" "Android 16 susfs"
+resolve_susfs_settings sm7550 lineage-23.0
+assert_eq "gki-android14-5.15" "$SUSFS_REF" "Nord CE4 susfs"
 version_is_at_least 2.2.0 2.2.0 || fail "SUSFS minimum version equality"
 version_is_at_least 2.3.0 2.2.0 || fail "SUSFS newer version acceptance"
 if version_is_at_least 2.1.9 2.2.0; then

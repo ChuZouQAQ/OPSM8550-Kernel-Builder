@@ -22,6 +22,9 @@ cleanup() {
 trap cleanup EXIT
 STATUS=0
 COUNT=0
+PROFILES=()
+mapfile -t PROFILES < <(list_build_profiles)
+PROFILE_COUNT="${#PROFILES[@]}"
 
 {
   echo "### Upstream resolution"
@@ -30,7 +33,7 @@ COUNT=0
   echo "| --- | --- | --- | --- | --- | --- | --- |"
 } >> "$GITHUB_STEP_SUMMARY"
 
-while IFS= read -r profile; do
+for profile in "${PROFILES[@]}"; do
   COUNT=$((COUNT + 1))
   env_file="${TMP_DIR}/env-${COUNT}"
   output_file="${TMP_DIR}/output-${COUNT}"
@@ -39,7 +42,7 @@ while IFS= read -r profile; do
   : > "$output_file"
   : > "$resolver_summary"
 
-  echo "[${COUNT}/9] Resolving ${profile}"
+  echo "[${COUNT}/${PROFILE_COUNT}] Resolving ${profile}"
   if INPUT_BUILD_PROFILE="$profile" \
      INPUT_BRANCH_MODE="Use the recommended branch automatically" \
      INPUT_KERNEL_BRANCH="" \
@@ -63,7 +66,7 @@ while IFS= read -r profile; do
     echo "| ${safe_profile} | - | - | - | - | - | **failed** |" >> "$GITHUB_STEP_SUMMARY"
     STATUS=1
   fi
-done < <(list_build_profiles)
+done
 
 if [[ "$STATUS" -ne 0 ]]; then
   echo "::error::One or more upstream profiles failed to resolve."
