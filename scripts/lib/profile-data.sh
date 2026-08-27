@@ -28,7 +28,7 @@ resolve_build_profile() {
       SOC="sm8450"
       TARGET_NAME="OnePlus 10 Pro"
       DEVICE_CODENAMES="negroni"
-      DEVICE_NAMES="negroni"
+      DEVICE_NAMES="negroni OP516EL1 OP516FL1"
       KERNEL_SOURCE="OnePlusOSS"
       SOURCE_LAYOUT="oneplus-official"
       ;;
@@ -37,7 +37,7 @@ resolve_build_profile() {
       SOC="sm8450"
       TARGET_NAME="OnePlus 10T / Ace Pro"
       DEVICE_CODENAMES="ovaltine"
-      DEVICE_NAMES="ovaltine"
+      DEVICE_NAMES="ovaltine OP5551L1 OP5552L1"
       KERNEL_SOURCE="lineage-ovaltine-dev"
       SOURCE_LAYOUT="community-flat"
       ;;
@@ -82,7 +82,7 @@ resolve_build_profile() {
       SOC="sm8650"
       TARGET_NAME="OnePlus 12"
       DEVICE_CODENAMES="waffle"
-      DEVICE_NAMES="waffle"
+      DEVICE_NAMES="waffle OP5929L1 OP595DL1"
       KERNEL_SOURCE="OnePlusOSS"
       SOURCE_LAYOUT="oneplus-official"
       ;;
@@ -91,7 +91,7 @@ resolve_build_profile() {
       SOC="sm8650"
       TARGET_NAME="OnePlus 12"
       DEVICE_CODENAMES="waffle"
-      DEVICE_NAMES="waffle"
+      DEVICE_NAMES="waffle OP5929L1 OP595DL1"
       KERNEL_SOURCE="LineageOS"
       SOURCE_LAYOUT="community-flat"
       ;;
@@ -100,7 +100,7 @@ resolve_build_profile() {
       SOC="sm8650"
       TARGET_NAME="OnePlus 12"
       DEVICE_CODENAMES="waffle"
-      DEVICE_NAMES="waffle"
+      DEVICE_NAMES="waffle OP5929L1 OP595DL1"
       KERNEL_SOURCE="crdroidandroid"
       SOURCE_LAYOUT="community-flat"
       ;;

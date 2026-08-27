@@ -45,7 +45,7 @@ grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
 
 expected_socs=(sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
 expected_codenames=(negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
-expected_devices=(negroni ovaltine "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" waffle waffle waffle)
+expected_devices=("negroni OP516EL1 OP516FL1" "ovaltine OP5551L1 OP5552L1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1")
 
 for i in "${!profiles[@]}"; do
   resolve_build_profile "${profiles[$i]}"
@@ -104,6 +104,19 @@ grep -q '^device.name2=OP591BL1$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel stock 
 grep -q '^device.name4=aston$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel aston mapping"
 grep -q '^device.name5=OP5D35L1$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel 12R stock ID mapping"
 grep -q '^supported.versions=16$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel Android mapping"
+
+for i in "${!profiles[@]}"; do
+  resolve_build_profile "${profiles[$i]}"
+  configure_anykernel_properties \
+    "$ANYKERNEL_FIXTURE" \
+    "${PROFILE_ID} test kernel" \
+    "$DEVICE_NAMES" \
+    "16"
+  for device_name in $DEVICE_NAMES; do
+    grep -q "^device.name[1-5]=${device_name}$" "$ANYKERNEL_FIXTURE" \
+      || fail "${profiles[$i]} did not inject device ID: $device_name"
+  done
+done
 
 printf '%s\n' \
   '  if [ ! "$match" ]; then' \

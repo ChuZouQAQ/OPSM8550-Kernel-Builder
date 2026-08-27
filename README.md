@@ -11,26 +11,28 @@ The workflow exposes only device/source combinations that are intentionally
 configured. This avoids late failures caused by selecting an incompatible SoC
 and source independently.
 
-| SoC | Target device | AnyKernel codename check | Source preset |
+| SoC | Target device | AnyKernel accepted device IDs | Source preset |
 | --- | --- | --- | --- |
-| `sm8450` | OnePlus 10 Pro | `negroni` | OnePlus official |
-| `sm8450` | OnePlus 10T / Ace Pro | `ovaltine` | LineageOS community |
-| `sm8550` | OnePlus 11 | `salami` | OnePlus official |
-| `sm8550` | OnePlus 11 / 12R | `salami`, `aston` | LineageOS |
-| `sm8550` | OnePlus 11 / 12R | `salami`, `aston` | crDroid |
-| `sm8550` | OnePlus 12R | `aston` | OnePlus 12R development |
-| `sm8650` | OnePlus 12 | `waffle` | OnePlus official |
-| `sm8650` | OnePlus 12 | `waffle` | LineageOS |
-| `sm8650` | OnePlus 12 | `waffle` | crDroid |
+| `sm8450` | OnePlus 10 Pro | `negroni`, `OP516EL1`, `OP516FL1` | OnePlus official |
+| `sm8450` | OnePlus 10T / Ace Pro | `ovaltine`, `OP5551L1`, `OP5552L1` | LineageOS community |
+| `sm8550` | OnePlus 11 | `salami`, `OP591BL1`, `OP594DL1` | OnePlus official |
+| `sm8550` | OnePlus 11 / 12R | OnePlus 11 IDs plus `aston`, `OP5D35L1` | LineageOS |
+| `sm8550` | OnePlus 11 / 12R | OnePlus 11 IDs plus `aston`, `OP5D35L1` | crDroid |
+| `sm8550` | OnePlus 12R | `aston`, `OP5D35L1` | OnePlus 12R development |
+| `sm8650` | OnePlus 12 | `waffle`, `OP5929L1`, `OP595DL1` | OnePlus official |
+| `sm8650` | OnePlus 12 | `waffle`, `OP5929L1`, `OP595DL1` | LineageOS |
+| `sm8650` | OnePlus 12 | `waffle`, `OP5929L1`, `OP595DL1` | crDroid |
 
 The OnePlus 10T community source is intentionally labeled `ovaltine`; it is
 not presented as a OnePlus 10 Pro source.
 
-For SM8550 packages, the device check accepts both custom-ROM codenames and
-the stock board IDs published by the LineageOS device trees: OnePlus 11 uses
-`salami`, `OP591BL1`, or `OP594DL1`; OnePlus 12R uses `aston` or `OP5D35L1`.
+Every package accepts both its custom-ROM codename and the device-specific
+stock board IDs published by the corresponding device tree. Generic SoC board
+names such as `taro`, `kalama`, and `pineapple` are deliberately excluded so a
+package cannot pass the check merely because another phone shares its chipset.
 The check remains enabled, and a rejected flash prints all four device values
-reported to AnyKernel so missing regional aliases can be diagnosed safely.
+reported to AnyKernel so a genuinely missing regional alias can be diagnosed
+safely.
 
 ## Build modes
 
@@ -104,8 +106,9 @@ or regenerate every cached input.
 ## Safe packaging and provenance
 
 Generated AnyKernel3 ZIPs enable `do.devicecheck=1` and contain only the
-codenames assigned to the selected profile. Android version checking is also
-enabled when the selected branch identifies a known Android generation.
+device-specific codenames and stock board IDs assigned to the selected profile.
+Android version checking is also enabled when the selected branch identifies a
+known Android generation.
 
 Each full build produces `release-assets/` containing:
 
