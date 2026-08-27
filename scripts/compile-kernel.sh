@@ -106,6 +106,10 @@ BUILD_PHASE="source integration"
 
 install_ksu_variant "${KSU_TYPE}"
 
+if [[ "$KSU_TYPE" == *KPM* ]]; then
+  verify_kpm_source_integration "${KSU_KERNEL_DIR}"
+fi
+
 if [[ "$KSU_TYPE" == *susfs* ]]; then
   : "${SUSFS_REF:?}"
   : "${SUSFS_COMMIT:?}"
@@ -150,6 +154,11 @@ if [[ "$KSU_TYPE" == *nomount* ]]; then
   require_config_enabled out/.config CONFIG_KEYS
   require_config_enabled out/.config CONFIG_NOMOUNT
 fi
+if [[ "$KSU_TYPE" == *KPM* ]]; then
+  require_config_enabled out/.config CONFIG_KPM
+  require_config_enabled out/.config CONFIG_KALLSYMS
+  require_config_enabled out/.config CONFIG_KALLSYMS_ALL
+fi
 
 CONFIG_SECONDS=$(($(date +%s) - CONFIG_STARTED_AT))
 
@@ -161,13 +170,20 @@ if [[ "$BUILD_MODE" == "Patch/config validation only" ]]; then
   if [[ "$KSU_TYPE" == *nomount* ]]; then
     SMOKE_TARGETS+=("${NOMOUNT_FS_DIR}/nomount/nomount.o")
   fi
+  if [[ "$KSU_TYPE" == *KPM* ]]; then
+    SMOKE_TARGETS+=(
+      "${KSU_DRIVER_DIR}/kernelsu/kpm/compact.o"
+      "${KSU_DRIVER_DIR}/kernelsu/kpm/kpm.o"
+      "${KSU_DRIVER_DIR}/kernelsu/kpm/super_access.o"
+    )
+  fi
 
   if [[ "${#SMOKE_TARGETS[@]}" -gt 0 ]]; then
     BUILD_PHASE="integration object smoke compile"
     COMPILE_STARTED_AT="$(date +%s)"
     if ! make -j"$(nproc)" "${MAKE_ARGS[@]}" "${SMOKE_TARGETS[@]}" 2>&1 | tee integration-smoke.log; then
       COMPILE_SECONDS=$(($(date +%s) - COMPILE_STARTED_AT))
-      echo "::error::SUSFS/NoMount integration object smoke compile failed."
+      echo "::error::SUSFS/NoMount/KPM integration object smoke compile failed."
       exit 1
     fi
     COMPILE_SECONDS=$(($(date +%s) - COMPILE_STARTED_AT))
@@ -176,6 +192,9 @@ if [[ "$BUILD_MODE" == "Patch/config validation only" ]]; then
     fi
     if [[ "$KSU_TYPE" == *nomount* ]]; then
       verify_nomount_binary_presence
+    fi
+    if [[ "$KSU_TYPE" == *KPM* ]]; then
+      verify_kpm_binary_presence
     fi
   fi
 
@@ -206,6 +225,11 @@ if [[ "$KSU_TYPE" == *susfs* ]]; then
 fi
 if [[ "$KSU_TYPE" == *nomount* ]]; then
   verify_nomount_binary_presence
+fi
+if [[ "$KSU_TYPE" == *KPM* ]]; then
+  echo "==== KPM CONFIG SNAPSHOT ===="
+  grep -E '^CONFIG_KPM=|^CONFIG_KALLSYMS(_ALL)?=' out/.config || true
+  verify_kpm_binary_presence
 fi
 
 ccache --show-stats || true

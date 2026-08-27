@@ -43,6 +43,10 @@ GITHUB_SHA="${GITHUB_SHA:-local}"
 SHORT_KERNEL_COMMIT="${KERNEL_COMMIT:0:12}"
 ZIP_NAME="${PROFILE_ID}_${KSU_TYPE}_${SHORT_KERNEL_COMMIT}_${BUILD_TIMESTAMP}"
 ASSET_DIR="${GITHUB_WORKSPACE:-$(pwd)}/release-assets"
+KPM_ENABLED=false
+if [[ "$KSU_TYPE" == *KPM* ]]; then
+  KPM_ENABLED=true
+fi
 
 {
   echo "ZIP_NAME=$ZIP_NAME"
@@ -98,6 +102,7 @@ jq -n \
   --arg modules_commit "$MODULES_COMMIT" \
   --arg clang "$CLANG_VERSION" \
   --arg root_solution "$KSU_TYPE" \
+  --argjson kpm_enabled "$KPM_ENABLED" \
   --arg ksu_commit "$KSU_COMMIT" \
   --arg susfs_ref "$SUSFS_REF" \
   --arg susfs_commit "$SUSFS_COMMIT" \
@@ -122,6 +127,7 @@ jq -n \
     modules_commit: $modules_commit,
     clang: $clang,
     root_solution: $root_solution,
+    kpm_enabled: $kpm_enabled,
     kernelsu_commit: $ksu_commit,
     susfs_ref: $susfs_ref,
     susfs_commit: $susfs_commit,
@@ -167,6 +173,7 @@ cat > "$ASSET_DIR/release-notes.md" <<EOF_NOTES
 - Modules commit: \`${MODULES_COMMIT}\`
 - Clang: ${CLANG_VERSION}
 - Root solution: ${KSU_TYPE}
+- KPM: ${KPM_ENABLED}
 - SUSFS: ${SUSFS_NOTE}
 - NoMount: ${NOMOUNT_NOTE}
 

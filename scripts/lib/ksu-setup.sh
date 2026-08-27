@@ -69,6 +69,7 @@ setup_kernelsu_repo() {
   KSU_REPO_DIR="$(readlink -f "$repo_dir")"
   export KSU_REPO_DIR
   export KSU_KERNEL_DIR="${KSU_REPO_DIR}/kernel"
+  export KSU_DRIVER_DIR="$driver_dir"
 }
 
 # Apply the chosen KSU preset from the commit resolved during profile setup.
@@ -89,6 +90,10 @@ install_ksu_variant() {
     "KernelSU-Next")
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for KernelSU-Next}"
       setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$KSU_COMMIT"
+      ;;
+    "SukiSU-Ultra-with-KPM")
+      : "${KSU_COMMIT:?KSU_COMMIT must be resolved for SukiSU Ultra}"
+      setup_kernelsu_repo "SukiSU-Ultra" "SukiSU-Ultra" "$KSU_COMMIT"
       ;;
     "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-nomount")
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for ReSukiSU}"

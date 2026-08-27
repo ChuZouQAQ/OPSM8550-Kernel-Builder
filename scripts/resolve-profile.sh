@@ -88,6 +88,10 @@ case "$KSU_TYPE" in
     KSU_REPO="https://github.com/KOWX712/KernelSU.git"
     KSU_REF="master"
     ;;
+  SukiSU-Ultra-with-KPM)
+    KSU_REPO="https://github.com/SukiSU-Ultra/SukiSU-Ultra.git"
+    KSU_REF="main"
+    ;;
   ReSukiSU*)
     KSU_REPO="https://github.com/ReSukiSU/ReSukiSU.git"
     KSU_REF="main"
@@ -273,6 +277,9 @@ esac
   fi
   if [[ -n "$NOMOUNT_REF" ]]; then
     echo "- NoMount: $NOMOUNT_REF (\`${NOMOUNT_COMMIT}\`, experimental)"
+  fi
+  if [[ "$KSU_TYPE" == *KPM* ]]; then
+    echo "- KPM: enabled (experimental)"
   fi
   echo "- AnyKernel3 commit: \`${ANYKERNEL_COMMIT}\`"
 } >> "$GITHUB_STEP_SUMMARY"

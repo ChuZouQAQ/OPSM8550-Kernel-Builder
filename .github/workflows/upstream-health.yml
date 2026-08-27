@@ -27,13 +27,16 @@ jobs:
         run: bash scripts/check-upstreams.sh
 
   patch-smoke:
-    name: Patch smoke ${{ matrix.profile }}
+    name: ${{ matrix.integration }} smoke ${{ matrix.profile }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
+        integration:
+          - ReSukiSU + SUSFS + NoMount (experimental)
+          - SukiSU Ultra + KPM (experimental)
         profile:
           - SM7550 | OnePlus Nord CE4 | development
           - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
@@ -51,7 +54,7 @@ jobs:
           INPUT_BRANCH_MODE: Use the recommended branch automatically
           INPUT_KERNEL_BRANCH: ""
           INPUT_CLANG_CHOICE: Recommended (auto-select based on branch)
-          INPUT_ROOT_SOLUTION: ReSukiSU + SUSFS + NoMount (experimental)
+          INPUT_ROOT_SOLUTION: ${{ matrix.integration }}
           INPUT_BUILD_MODE: Patch/config validation only
         run: bash scripts/resolve-profile.sh
 

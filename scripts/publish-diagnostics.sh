@@ -61,7 +61,7 @@ append_file_block() {
   if [[ -f "${SOC}/out/.config" ]]; then
     echo '#### .config snapshot'
     echo '```text'
-    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_NOMOUNT=' "${SOC}/out/.config" || true
+    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_NOMOUNT=|^CONFIG_KPM=|^CONFIG_KALLSYMS(_ALL)?=' "${SOC}/out/.config" || true
     echo '```'
     echo
   fi
@@ -71,4 +71,6 @@ append_file_block() {
   append_file_block "susfs-proof.txt"        "${SOC}/susfs-proof.txt"
   append_file_block "nomount-source-proof.txt" "${SOC}/nomount-source-proof.txt"
   append_file_block "nomount-proof.txt"        "${SOC}/nomount-proof.txt"
+  append_file_block "kpm-source-proof.txt"     "${SOC}/kpm-source-proof.txt"
+  append_file_block "kpm-proof.txt"            "${SOC}/kpm-proof.txt"
 } >> "$GITHUB_STEP_SUMMARY"

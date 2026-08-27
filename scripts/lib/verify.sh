@@ -3,6 +3,83 @@
 # Post-patch/post-build verification helpers. Sourced, not executed.
 #
 
+verify_kpm_source_integration() {
+  local ksu_kernel_dir="$1"
+  local kpm_object
+
+  test -f "${ksu_kernel_dir}/kpm/kpm.c" || {
+    echo "::error::SukiSU KPM loader source is missing at ${ksu_kernel_dir}/kpm/kpm.c."
+    exit 1
+  }
+  test -f "${ksu_kernel_dir}/kpm/compact.c" || {
+    echo "::error::SukiSU KPM compatibility source is missing at ${ksu_kernel_dir}/kpm/compact.c."
+    exit 1
+  }
+  test -f "${ksu_kernel_dir}/kpm/super_access.c" || {
+    echo "::error::SukiSU KPM structure-access source is missing at ${ksu_kernel_dir}/kpm/super_access.c."
+    exit 1
+  }
+  grep -Eq '^[[:space:]]*config KPM$' "${ksu_kernel_dir}/Kconfig" || {
+    echo "::error::SukiSU Kconfig does not expose CONFIG_KPM."
+    exit 1
+  }
+  for kpm_object in compact kpm super_access; do
+    grep -Fq "obj-\$(CONFIG_KPM) += kpm/${kpm_object}.o" "${ksu_kernel_dir}/Kbuild" || {
+      echo "::error::SukiSU Kbuild does not wire kpm/${kpm_object}.o."
+      exit 1
+    }
+  done
+  grep -q 'sukisu_handle_kpm' "${ksu_kernel_dir}/kpm/kpm.c" || {
+    echo "::error::SukiSU KPM loader does not expose the expected manager handler."
+    exit 1
+  }
+
+  {
+    echo "==== KPM SOURCE PROOF ===="
+    echo "kernel_branch=${KERNEL_BRANCH}"
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_commit=${MODULES_COMMIT}"
+    echo "sukisu_commit=${KSU_COMMIT}"
+    grep -nE '^[[:space:]]*config KPM$|^[[:space:]]*select KALLSYMS(_ALL)?$' "${ksu_kernel_dir}/Kconfig" || true
+    grep -Fn 'obj-$(CONFIG_KPM)' "${ksu_kernel_dir}/Kbuild" || true
+    grep -nE 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' "${ksu_kernel_dir}/kpm/kpm.c" | head -n 20 || true
+  } | tee kpm-source-proof.txt
+}
+
+verify_kpm_binary_presence() {
+  local symbol_hits=0
+  local object_file="out/${KSU_DRIVER_DIR:?}/kernelsu/kpm/kpm.o"
+
+  if [[ -f "$object_file" ]]; then
+    nm "$object_file" | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' && symbol_hits=1 || true
+  fi
+  if [[ -f out/System.map ]]; then
+    grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' out/System.map && symbol_hits=1 || true
+  fi
+  if [[ -f out/vmlinux ]]; then
+    nm out/vmlinux | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' && symbol_hits=1 || true
+  fi
+  if [[ "$symbol_hits" -eq 0 ]]; then
+    echo "::error::CONFIG_KPM=y, but no SukiSU KPM signature was found in the final kernel artifacts."
+    exit 1
+  fi
+
+  {
+    echo "==== KPM BINARY PROOF ===="
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "sukisu_commit=${KSU_COMMIT}"
+    if [[ -f "$object_file" ]]; then
+      nm "$object_file" | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' | head -n 20 || true
+    fi
+    if [[ -f out/System.map ]]; then
+      grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' out/System.map | head -n 20 || true
+    fi
+    if [[ -f out/vmlinux ]]; then
+      nm out/vmlinux | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' | head -n 20 || true
+    fi
+  } | tee kpm-proof.txt
+}
+
 verify_susfs_source_integration() {
   local ksu_kernel_dir="$1"
   local runtime_file="${ksu_kernel_dir}/runtime/ksud_integration.c"

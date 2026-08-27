@@ -45,9 +45,9 @@ safely.
 `Build OnePlus Kernel` offers three modes:
 
 - `Patch/config validation only` clones exact upstream revisions, applies the
-  selected KernelSU/SUSFS/NoMount integration, verifies the final config, and
-  smoke-compiles the affected SUSFS, VFS, proc, reboot, and NoMount objects
-  without spending time on a full kernel compile.
+  selected KernelSU/KPM/SUSFS/NoMount integration, verifies the final config,
+  and smoke-compiles the affected KPM, SUSFS, VFS, proc, reboot, and NoMount
+  objects without spending time on a full kernel compile.
 - `Full build (artifact only)` builds and uploads a 14-day workflow artifact.
   This is the default and does not create a permanent GitHub Release.
 - `Full build and publish release` builds the same verified artifact, then a
@@ -55,20 +55,30 @@ safely.
 
 ## Root integrations
 
-Available presets:
+Available workflow presets:
 
-- no root changes
-- official KernelSU
-- KernelSU-Next
-- KowSU
-- ReSukiSU
-- ReSukiSU with SUSFS
-- ReSukiSU with SUSFS and NoMount (experimental)
+| Preset | Integration | Status |
+| --- | --- | --- |
+| `No root changes` | No root integration | Baseline |
+| `Official KernelSU` | Official KernelSU | Supported |
+| `KernelSU-Next` | KernelSU-Next | Supported |
+| `KowSU` | KowSU | Supported |
+| `SukiSU Ultra + KPM (experimental)` | SukiSU Ultra with KPM | Experimental |
+| `ReSukiSU` | ReSukiSU | Supported |
+| `ReSukiSU + susfs` | ReSukiSU with SUSFS | Supported |
+| `ReSukiSU + SUSFS + NoMount (experimental)` | ReSukiSU with SUSFS and NoMount | Experimental |
 
-KPM is not exposed because current ReSukiSU no longer supports it. SUSFS
-branches are selected from the SoC and Android/kernel branch, and known vendor
-include drift is repaired only for explicitly recognized conflicts. Unknown
-patch rejects fail closed and are included in diagnostics.
+KPM is available only through the dedicated SukiSU Ultra preset because current
+ReSukiSU no longer supports it. The pipeline resolves SukiSU Ultra to an exact
+commit, checks its KPM sources and Kbuild wiring, and enables `CONFIG_KPM`,
+`CONFIG_KALLSYMS`, and `CONFIG_KALLSYMS_ALL`. Validation mode compiles the three
+KPM objects and checks their exported signatures; a full build repeats the
+signature check against the final kernel artifacts. Both paths fail closed when
+the expected wiring, config, objects, or symbols are missing.
+
+SUSFS branches are selected from the SoC and Android/kernel branch, and known
+vendor include drift is repaired only for explicitly recognized conflicts.
+Unknown patch rejects fail closed and are included in diagnostics.
 
 SUSFS builds require upstream v2.2.0 or newer and explicitly verify the
 `SUS_MAP` and `OPEN_REDIRECT` features in the final config. The NoMount preset
@@ -88,8 +98,8 @@ an explicit opt-in instead of changing existing build presets.
 6. Use release mode only for an artifact you intend to keep or distribute.
 
 Manual branch names are validated with Git before they are written to GitHub
-Actions environment files. Every kernel, modules, KernelSU, SUSFS, NoMount,
-and AnyKernel input is resolved to an exact commit before cloning.
+Actions environment files. Every kernel, modules, root implementation, SUSFS,
+NoMount, and AnyKernel input is resolved to an exact commit before cloning.
 
 ## Build performance
 
@@ -120,14 +130,16 @@ Each full build produces `release-assets/` containing:
 
 - a device-checked AnyKernel3 ZIP
 - a uniquely named raw `Image`
-- `build-info.json` with all exact source commits and the workflow run URL
+- `build-info.json` with all exact source commits, the KPM enabled state, and
+  the workflow run URL
 - `SHA256SUMS`
 - generated `release-notes.md`
 
-GitHub Actions uploads these release-ready files as one flat package artifact
-and keeps build logs, configuration, SUSFS proofs, and NoMount proofs in a separate diagnostics
-artifact. The release job downloads only the package artifact and verifies its
-checksums before publishing.
+GitHub Actions uploads these release-ready files as one flat package artifact.
+Build logs and configuration are kept in a separate diagnostics artifact,
+along with `kpm-source-proof.txt` and `kpm-proof.txt` when KPM is selected (and
+equivalent SUSFS/NoMount proofs for those presets). The release job downloads
+only the package artifact and verifies its checksums before publishing.
 
 The same `build-info.json` is embedded in the flashable ZIP. Keep a known-good
 stock boot image available and never flash a package whose device check does
@@ -155,14 +167,14 @@ Pushes and pull requests run:
 - Bash syntax checks
 - ShellCheck at warning severity
 - offline tests for all ten profile mappings, root mappings, Clang selection,
-  SUSFS selection/version floor, NoMount selection/wiring, Android version
-  inference, and workflow option synchronization
+  KPM configuration, SUSFS selection/version floor, NoMount selection/wiring,
+  Android version inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
-resolves exact commits for all ten profiles and performs ReSukiSU + SUSFS +
-NoMount patch/config smoke tests on representative SM7550, SM8450, SM8550,
-and SM8650 sources.
+resolves exact commits for all ten profiles, then runs an eight-job smoke-test
+matrix: both SukiSU Ultra + KPM and ReSukiSU + SUSFS + NoMount are validated on
+representative SM7550, SM8450, SM8550, and SM8650 sources.
 
 ## Important limitations
 
@@ -175,6 +187,8 @@ and SM8650 sources.
   module or replace device-specific firmware.
 - NoMount modifies VFS behavior and upstream labels it experimental. Test its
   dedicated preset on a recoverable device before distributing it.
+- KPM dynamically patches kernel behavior at runtime. Treat its dedicated
+  SukiSU Ultra preset as experimental and test it only on a recoverable device.
 - Runtime performance tuning is intentionally left at upstream/vendor config
   defaults. Options such as KASAN, LTO mode, scheduler changes, and compiler
   optimization flags require device-specific boot, stability, power, and

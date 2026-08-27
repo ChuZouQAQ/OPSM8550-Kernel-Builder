@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/../lib/nomount-setup.sh"
 # shellcheck source=../lib/susfs-apply.sh
 . "${SCRIPT_DIR}/../lib/susfs-apply.sh"
+# shellcheck source=../lib/kernel-helpers.sh
+. "${SCRIPT_DIR}/../lib/kernel-helpers.sh"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -70,8 +72,14 @@ resolve_root_solution "ReSukiSU + susfs"
 assert_eq "ReSukiSU-with-susfs" "$KSU_TYPE" "root mapping"
 resolve_root_solution "ReSukiSU + SUSFS + NoMount (experimental)"
 assert_eq "ReSukiSU-with-susfs-nomount" "$KSU_TYPE" "NoMount root mapping"
+resolve_root_solution "SukiSU Ultra + KPM (experimental)"
+assert_eq "SukiSU-Ultra-with-KPM" "$KSU_TYPE" "KPM root mapping"
 grep -Fq -- '- ReSukiSU + SUSFS + NoMount (experimental)' "$WORKFLOW_FILE" \
   || fail "workflow is missing the NoMount root option"
+grep -Fq -- '- SukiSU Ultra + KPM (experimental)' "$WORKFLOW_FILE" \
+  || fail "workflow is missing the KPM root option"
+grep -Fq 'CONFIG_KPM CONFIG_KALLSYMS CONFIG_KALLSYMS_ALL' "${SCRIPT_DIR}/../lib/kernel-helpers.sh" \
+  || fail "KPM preset is missing required config values"
 
 resolve_clang_version "Recommended (auto-select based on branch)" "lineage-23.2"
 assert_eq "clang-r563880c" "$CLANG_VERSION" "LineageOS 23.2 clang"
@@ -97,8 +105,16 @@ assert_eq "16" "$SUPPORTED_ANDROID_VERSIONS" "Android 16 development detection"
 
 ANYKERNEL_FIXTURE="$(mktemp)"
 UPDATE_BINARY_FIXTURE="$(mktemp)"
+KPM_CONFIG_FIXTURE="$(mktemp)"
 NOMOUNT_FIXTURE_DIR="$(mktemp -d)"
-trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
+trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE" "$KPM_CONFIG_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
+
+KSU_TYPE="SukiSU-Ultra-with-KPM"
+apply_variant_configs "$KPM_CONFIG_FIXTURE"
+grep -q '^CONFIG_KPM=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM config"
+grep -q '^CONFIG_KALLSYMS=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM kallsyms config"
+grep -q '^CONFIG_KALLSYMS_ALL=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM kallsyms-all config"
+
 printf '%s\n' \
   'kernel.string=placeholder' \
   'do.devicecheck=0' \
@@ -146,4 +162,4 @@ insert_line_before_last_match \
 assert_eq "4" "$(grep -nF 'source "fs/nomount/Kconfig"' "$NOMOUNT_FIXTURE_DIR/Kconfig" | cut -d: -f1)" \
   "NoMount Kconfig insertion"
 
-echo "PASS: profiles, SUSFS floor, NoMount integration, and AnyKernel protection"
+echo "PASS: profiles, KPM, SUSFS floor, NoMount integration, and AnyKernel protection"
