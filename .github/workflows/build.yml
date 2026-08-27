@@ -133,7 +133,7 @@ jobs:
       - name: Restore AOSP Clang cache
         id: clang-cache
         if: inputs.build_mode != 'Patch/config validation only'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: toolchains/${{ steps.resolve.outputs.clang_version }}
           key: ${{ runner.os }}-aosp-clang-v2-${{ steps.resolve.outputs.clang_version }}-${{ hashFiles('scripts/download-clang.sh') }}
@@ -152,7 +152,7 @@ jobs:
 
       - name: Restore AnyKernel3 cache
         if: inputs.build_mode != 'Patch/config validation only'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: AnyKernel3
           key: ${{ runner.os }}-anykernel3-${{ steps.resolve.outputs.anykernel_commit }}
