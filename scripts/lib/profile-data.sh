@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+#
+# Pure build-profile mappings shared by the resolver and its offline tests.
+# This file performs no network or filesystem operations.
+#
+# Functions intentionally populate globals consumed by the sourcing script.
+# shellcheck disable=SC2034
+
+list_build_profiles() {
+  printf '%s\n' \
+    "SM8450 | OnePlus 10 Pro | OnePlus official" \
+    "SM8450 | OnePlus 10T / Ace Pro | LineageOS community" \
+    "SM8550 | OnePlus 11 | OnePlus official" \
+    "SM8550 | OnePlus 11 / 12R | LineageOS (recommended)" \
+    "SM8550 | OnePlus 11 / 12R | crDroid" \
+    "SM8550 | OnePlus 12R | development" \
+    "SM8650 | OnePlus 12 | OnePlus official" \
+    "SM8650 | OnePlus 12 | LineageOS (recommended)" \
+    "SM8650 | OnePlus 12 | crDroid"
+}
+
+resolve_build_profile() {
+  local profile="$1"
+
+  case "$profile" in
+    "SM8450 | OnePlus 10 Pro | OnePlus official")
+      PROFILE_ID="sm8450-oneplus10pro-official"
+      SOC="sm8450"
+      TARGET_NAME="OnePlus 10 Pro"
+      DEVICE_NAMES="negroni"
+      KERNEL_SOURCE="OnePlusOSS"
+      SOURCE_LAYOUT="oneplus-official"
+      ;;
+    "SM8450 | OnePlus 10T / Ace Pro | LineageOS community")
+      PROFILE_ID="sm8450-oneplus10t-lineage"
+      SOC="sm8450"
+      TARGET_NAME="OnePlus 10T / Ace Pro"
+      DEVICE_NAMES="ovaltine"
+      KERNEL_SOURCE="lineage-ovaltine-dev"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    "SM8550 | OnePlus 11 | OnePlus official")
+      PROFILE_ID="sm8550-oneplus11-official"
+      SOC="sm8550"
+      TARGET_NAME="OnePlus 11"
+      DEVICE_NAMES="salami"
+      KERNEL_SOURCE="OnePlusOSS"
+      SOURCE_LAYOUT="oneplus-official"
+      ;;
+    "SM8550 | OnePlus 11 / 12R | LineageOS (recommended)")
+      PROFILE_ID="sm8550-oneplus11-12r-lineage"
+      SOC="sm8550"
+      TARGET_NAME="OnePlus 11 / 12R"
+      DEVICE_NAMES="salami aston"
+      KERNEL_SOURCE="LineageOS"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    "SM8550 | OnePlus 11 / 12R | crDroid")
+      PROFILE_ID="sm8550-oneplus11-12r-crdroid"
+      SOC="sm8550"
+      TARGET_NAME="OnePlus 11 / 12R"
+      DEVICE_NAMES="salami aston"
+      KERNEL_SOURCE="crdroidandroid"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    "SM8550 | OnePlus 12R | development")
+      PROFILE_ID="sm8550-oneplus12r-dev"
+      SOC="sm8550"
+      TARGET_NAME="OnePlus 12R"
+      DEVICE_NAMES="aston"
+      KERNEL_SOURCE="OnePlus12R-development"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    "SM8650 | OnePlus 12 | OnePlus official")
+      PROFILE_ID="sm8650-oneplus12-official"
+      SOC="sm8650"
+      TARGET_NAME="OnePlus 12"
+      DEVICE_NAMES="waffle"
+      KERNEL_SOURCE="OnePlusOSS"
+      SOURCE_LAYOUT="oneplus-official"
+      ;;
+    "SM8650 | OnePlus 12 | LineageOS (recommended)")
+      PROFILE_ID="sm8650-oneplus12-lineage"
+      SOC="sm8650"
+      TARGET_NAME="OnePlus 12"
+      DEVICE_NAMES="waffle"
+      KERNEL_SOURCE="LineageOS"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    "SM8650 | OnePlus 12 | crDroid")
+      PROFILE_ID="sm8650-oneplus12-crdroid"
+      SOC="sm8650"
+      TARGET_NAME="OnePlus 12"
+      DEVICE_NAMES="waffle"
+      KERNEL_SOURCE="crdroidandroid"
+      SOURCE_LAYOUT="community-flat"
+      ;;
+    *)
+      echo "::error::Unknown build profile: $profile"
+      return 1
+      ;;
+  esac
+
+  case "$SOC" in
+    sm8450)
+      PLATFORM_SLUG="8gen1"
+      PLATFORM_NAME="Snapdragon 8 Gen 1"
+      BUILD_CONFIGS="vendor/waipio_GKI.config vendor/oplus/waipio_GKI.config vendor/debugfs.config"
+      OFFICIAL_BUILD_TARGET="waipio"
+      OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/waipio_GKI.config"
+      ;;
+    sm8550)
+      PLATFORM_SLUG="8gen2"
+      PLATFORM_NAME="Snapdragon 8 Gen 2"
+      BUILD_CONFIGS="vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config"
+      OFFICIAL_BUILD_TARGET="kalama"
+      OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/kalama_GKI.config"
+      ;;
+    sm8650)
+      PLATFORM_SLUG="8gen3"
+      PLATFORM_NAME="Snapdragon 8 Gen 3"
+      BUILD_CONFIGS="vendor/pineapple_GKI.config vendor/oplus/pineapple_GKI.config"
+      OFFICIAL_BUILD_TARGET="pineapple"
+      OFFICIAL_GKI_FRAGMENT="arch/arm64/configs/vendor/pineapple_GKI.config"
+      ;;
+  esac
+
+  case "$KERNEL_SOURCE" in
+    OnePlusOSS)
+      SOURCE_NAME="OnePlus official source"
+      SOURCE_SLUG="oneplus-official"
+      ;;
+    LineageOS)
+      SOURCE_NAME="LineageOS"
+      SOURCE_SLUG="lineageos"
+      ;;
+    lineage-ovaltine-dev)
+      SOURCE_NAME="LineageOS community (ovaltine)"
+      SOURCE_SLUG="lineage-community"
+      ;;
+    crdroidandroid)
+      SOURCE_NAME="crDroid"
+      SOURCE_SLUG="crdroid"
+      ;;
+    OnePlus12R-development)
+      SOURCE_NAME="OnePlus 12R development"
+      SOURCE_SLUG="oneplus12r-dev"
+      ;;
+  esac
+}
+
+resolve_root_solution() {
+  case "$1" in
+    "No root changes") KSU_TYPE="None" ;;
+    "Official KernelSU") KSU_TYPE="Official-KernelSU" ;;
+    "KernelSU-Next") KSU_TYPE="KernelSU-Next" ;;
+    "KowSU") KSU_TYPE="KowSU" ;;
+    "ReSukiSU") KSU_TYPE="ReSukiSU" ;;
+    "ReSukiSU + susfs") KSU_TYPE="ReSukiSU-with-susfs" ;;
+    "ReSukiSU + SUSFS + NoMount (experimental)") KSU_TYPE="ReSukiSU-with-susfs-nomount" ;;
+    *)
+      echo "::error::Unsupported root solution: $1"
+      return 1
+      ;;
+  esac
+}
+
+resolve_clang_version() {
+  local choice="$1"
+  local branch="$2"
+
+  case "$choice" in
+    "Recommended (auto-select based on branch)")
+      case "$branch" in
+        main|master|android-mainline*) CLANG_VERSION="clang-r596125" ;;
+        lineage-19.1*|oneplus/*_s_12.1*|oneplus/*_s_12.0*) CLANG_VERSION="clang-r416183b1" ;;
+        lineage-20*|thirteen*|android13*|13.*|oneplus/*_t_13*|oneplus_*_t_13*) CLANG_VERSION="clang-r450784d" ;;
+        lineage-21*|fourteen*|android14*|14.*|oneplus/*_u_14*|oneplus_*_u_14*) CLANG_VERSION="clang-r487747c" ;;
+        lineage-22*|fifteen*|android15*|15.*|oneplus/*_v_15*|oneplus_*_v_15*) CLANG_VERSION="clang-r536225" ;;
+        lineage-23.0*) CLANG_VERSION="clang-r547379" ;;
+        16.0|lineage-23*|sixteen*|android16*|16.*|oneplus/*_b_16*|oneplus_*_b_16*) CLANG_VERSION="clang-r563880c" ;;
+        *)
+          CLANG_VERSION="clang-r563880c"
+          echo "::warning::Could not confidently infer clang for '$branch'; using $CLANG_VERSION."
+          ;;
+      esac
+      ;;
+    "clang-r596125 (Clang 22.0.2 / current AOSP mainline era)") CLANG_VERSION="clang-r596125" ;;
+    "clang-r563880c (Android 16 / LineageOS 23.2+ era)") CLANG_VERSION="clang-r563880c" ;;
+    "clang-r547379 (Android 16 / LineageOS 23.0 era)") CLANG_VERSION="clang-r547379" ;;
+    "clang-r536225 (Android 15 / LineageOS 22.2 era)") CLANG_VERSION="clang-r536225" ;;
+    "clang-r487747c (Android 14 / LineageOS 21 era)") CLANG_VERSION="clang-r487747c" ;;
+    "clang-r450784d (Android 13 / LineageOS 20 era)") CLANG_VERSION="clang-r450784d" ;;
+    "clang-r416183b1 (Android 12 / LineageOS 19.1 era)") CLANG_VERSION="clang-r416183b1" ;;
+    *)
+      echo "::error::Unknown clang choice: $choice"
+      return 1
+      ;;
+  esac
+}
+
+resolve_susfs_settings() {
+  local soc="$1"
+  local branch="$2"
+
+  case "$soc" in
+    sm8450)
+      SUSFS_REF="gki-android13-5.10"
+      ;;
+    sm8550)
+      case "$branch" in
+        lineage-20*|thirteen*|android13*|13.*|oneplus/*_t_13*|oneplus_*_t_13*)
+          SUSFS_REF="gki-android13-5.15"
+          ;;
+        *)
+          SUSFS_REF="gki-android14-5.15"
+          ;;
+      esac
+      ;;
+    sm8650)
+      SUSFS_REF="gki-android14-6.1"
+      ;;
+    *)
+      echo "::error::No susfs mapping is configured for platform $soc"
+      return 1
+      ;;
+  esac
+
+  SUSFS_PATCH_FILE="50_add_susfs_in_${SUSFS_REF}.patch"
+}
+
+infer_android_versions() {
+  local branch="$1"
+
+  case "$branch" in
+    lineage-19.1*|oneplus/*_s_12*|oneplus_*_s_12*) SUPPORTED_ANDROID_VERSIONS="12" ;;
+    lineage-20*|thirteen*|android13*|13.*|oneplus/*_t_13*|oneplus_*_t_13*) SUPPORTED_ANDROID_VERSIONS="13" ;;
+    lineage-21*|fourteen*|android14*|14.*|oneplus/*_u_14*|oneplus_*_u_14*) SUPPORTED_ANDROID_VERSIONS="14" ;;
+    lineage-22*|fifteen*|android15*|15.*|oneplus/*_v_15*|oneplus_*_v_15*) SUPPORTED_ANDROID_VERSIONS="15" ;;
+    16.0|lineage-23*|sixteen*|android16*|16.*|oneplus/*_b_16*|oneplus_*_b_16*) SUPPORTED_ANDROID_VERSIONS="16" ;;
+    *) SUPPORTED_ANDROID_VERSIONS="" ;;
+  esac
+}

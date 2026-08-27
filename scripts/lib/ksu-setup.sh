@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # KernelSU variant setup helpers. Sourced, not executed.
-# Depends on lib/kernel-helpers.sh (insert_line_before_first_match,
+# Depends on lib/git-helpers.sh and lib/kernel-helpers.sh (insert_line_before_first_match,
 # ensure_line_in_file, detect_kernelsu_driver_dir, kernelsu_kconfig_source_path).
 #
 
@@ -38,7 +38,7 @@ setup_kernelsu_repo() {
     git init -q "$repo_dir"
     git -C "$repo_dir" remote add origin "https://github.com/${owner}/${repo}.git"
 
-    if git -C "$repo_dir" fetch --depth=1 --no-tags origin "$ref" && \
+    if git_fetch_retry "$repo_dir" --depth=1 --no-tags origin "$ref" && \
        git -C "$repo_dir" checkout -q --detach FETCH_HEAD; then
       actual_commit="$(git -C "$repo_dir" rev-parse HEAD)"
       if [[ "$ref" =~ ^[0-9a-f]{40}$ ]] && [[ "$actual_commit" != "$ref" ]]; then
@@ -90,7 +90,7 @@ install_ksu_variant() {
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for KernelSU-Next}"
       setup_kernelsu_repo "KernelSU-Next" "KernelSU-Next" "$KSU_COMMIT"
       ;;
-    "ReSukiSU"|"ReSukiSU-with-susfs")
+    "ReSukiSU"|"ReSukiSU-with-susfs"|"ReSukiSU-with-susfs-nomount")
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for ReSukiSU}"
       setup_kernelsu_repo "ReSukiSU" "ReSukiSU" "$KSU_COMMIT"
       ;;

@@ -130,10 +130,11 @@ enable_susfs_configs() {
     CONFIG_KSU_SUSFS_SUS_PATH \
     CONFIG_KSU_SUSFS_SUS_MOUNT \
     CONFIG_KSU_SUSFS_SUS_KSTAT \
+    CONFIG_KSU_SUSFS_SUS_MAP \
     CONFIG_KSU_SUSFS_SPOOF_UNAME \
     CONFIG_KSU_SUSFS_ENABLE_LOG \
-    CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT \
-    CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+    CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+    CONFIG_KSU_SUSFS_OPEN_REDIRECT
   disable_config_values "$config_file" \
     CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
 }
@@ -152,6 +153,10 @@ apply_variant_configs() {
 
   if [[ "$KSU_TYPE" != "None" ]]; then
     enable_ksu_common_configs "$config_file"
+  fi
+
+  if [[ "$KSU_TYPE" == *nomount* ]]; then
+    enable_config_values "$config_file" CONFIG_KEYS CONFIG_NOMOUNT
   fi
 
 }

@@ -1,30 +1,25 @@
 name: Build OnePlus Kernel
 run-name: >-
-  ${{ inputs.platform }} | ${{ inputs.source_choice }} | ${{ inputs.root_solution }}
+  ${{ inputs.build_profile }} | ${{ inputs.root_solution }} | ${{ inputs.build_mode }}
 
 on:
   workflow_dispatch:
     inputs:
-      platform:
-        description: Target chipset / device family
+      build_profile:
+        description: Device and upstream source preset
         required: true
         type: choice
-        default: Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
+        default: SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
         options:
-          - Snapdragon 8 Gen 1 (SM8450 / OnePlus 10 Pro)
-          - Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)
-          - Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)
-      source_choice:
-        description: Upstream kernel source preset
-        required: true
-        type: choice
-        default: Recommended source for this platform
-        options:
-          - Recommended source for this platform
-          - OnePlus official source
-          - LineageOS / community source
-          - crDroid source
-          - OnePlus 12R development source (SM8550 only)
+          - SM8450 | OnePlus 10 Pro | OnePlus official
+          - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
+          - SM8550 | OnePlus 11 | OnePlus official
+          - SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
+          - SM8550 | OnePlus 11 / 12R | crDroid
+          - SM8550 | OnePlus 12R | development
+          - SM8650 | OnePlus 12 | OnePlus official
+          - SM8650 | OnePlus 12 | LineageOS (recommended)
+          - SM8650 | OnePlus 12 | crDroid
       branch_mode:
         description: Use the upstream default branch or enter one manually
         required: true
@@ -39,7 +34,7 @@ on:
         type: string
         default: ""
       clang_choice:
-        description: Compiler preset. Auto is recommended for most builds.
+        description: Compiler preset; auto is safest for normal builds
         required: true
         type: choice
         default: Recommended (auto-select based on branch)
@@ -64,71 +59,112 @@ on:
           - KowSU
           - ReSukiSU
           - ReSukiSU + susfs
+          - ReSukiSU + SUSFS + NoMount (experimental)
+      build_mode:
+        description: Validate quickly, keep an artifact, or also publish a release
+        required: true
+        type: choice
+        default: Full build (artifact only)
+        options:
+          - Patch/config validation only
+          - Full build (artifact only)
+          - Full build and publish release
+
+permissions:
+  contents: read
 
 jobs:
-  prepare:
-    name: Resolve requested build variants
-    runs-on: ubuntu-latest
-    outputs:
-      build_matrix: ${{ steps.select-matrix.outputs.build_matrix }}
-    steps:
-      - name: Checkout workflow scripts
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: scripts
-          sparse-checkout-cone-mode: false
-
-      - name: Select build matrix
-        id: select-matrix
-        env:
-          ROOT_SOLUTION: ${{ inputs.root_solution }}
-        run: |
-          set -euo pipefail
-          bash -n scripts/*.sh scripts/lib/*.sh
-          bash scripts/select-matrix.sh
-
-  Kernel_CI:
-    name: Build ${{ matrix.build_label }}
-    needs: prepare
-    runs-on: ubuntu-latest
+  build:
+    name: Build ${{ inputs.root_solution }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
     concurrency:
-      group: kernel-ci-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.source_choice }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ matrix.ksu_type }}-${{ inputs.clang_choice }}
+      group: kernel-ci-${{ github.ref_name }}-${{ inputs.build_profile }}-${{ inputs.root_solution }}-${{ inputs.branch_mode }}-${{ inputs.kernel_branch }}-${{ inputs.build_mode }}
       cancel-in-progress: true
-
-    permissions:
-      contents: write
-      actions: read
-      checks: read
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      release_name: ${{ steps.metadata.outputs.release_name }}
 
     env:
-      GH_TOKEN: ${{ github.token }}
       DEBIAN_FRONTEND: noninteractive
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout pipeline
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - name: Set up swap (16G)
+      - name: Resolve build profile
+        id: resolve
+        env:
+          INPUT_BUILD_PROFILE: ${{ inputs.build_profile }}
+          INPUT_BRANCH_MODE: ${{ inputs.branch_mode }}
+          INPUT_KERNEL_BRANCH: ${{ inputs.kernel_branch }}
+          INPUT_CLANG_CHOICE: ${{ inputs.clang_choice }}
+          INPUT_ROOT_SOLUTION: ${{ inputs.root_solution }}
+          INPUT_BUILD_MODE: ${{ inputs.build_mode }}
+        run: bash scripts/resolve-profile.sh
+
+      - name: Set build metadata
+        id: metadata
         run: |
           set -euo pipefail
-          SWAPFILE="${RUNNER_TEMP:-/tmp}/kernel-build-swapfile"
+          SAFE_KERNEL_BRANCH="${KERNEL_BRANCH//\//-}"
+          BUILD_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"
+          ARTIFACT_NAME="kernel-package-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          DIAGNOSTICS_NAME="kernel-diagnostics-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          RELEASE_NAME="${PROFILE_ID}_${KSU_TYPE}_r${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          CCACHE_PREFIX="${RUNNER_OS}-ccache-v2-${SOC}-${SOURCE_SLUG}-${PROFILE_ID}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}"
+          CCACHE_EPOCH="$(date -u +'%G-W%V')"
+          {
+            echo "BUILD_TIMESTAMP=${BUILD_TIMESTAMP}"
+            echo "SAFE_KERNEL_BRANCH=${SAFE_KERNEL_BRANCH}"
+            echo "ARTIFACT_NAME=${ARTIFACT_NAME}"
+            echo "DIAGNOSTICS_NAME=${DIAGNOSTICS_NAME}"
+            echo "RELEASE_NAME=${RELEASE_NAME}"
+            echo "CCACHE_PREFIX=${CCACHE_PREFIX}"
+            echo "CCACHE_KEY=${CCACHE_PREFIX}-${CCACHE_EPOCH}"
+          } >> "$GITHUB_ENV"
+          {
+            echo "artifact_name=${ARTIFACT_NAME}"
+            echo "release_name=${RELEASE_NAME}"
+          } >> "$GITHUB_OUTPUT"
 
-          if swapon --show=NAME --noheadings | grep -Fxq "$SWAPFILE"; then
-            echo "Swap is already enabled at ${SWAPFILE}"
-            swapon --show
-            exit 0
-          fi
+      - name: Restore AOSP Clang cache
+        id: clang-cache
+        if: inputs.build_mode != 'Patch/config validation only'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: toolchains/${{ steps.resolve.outputs.clang_version }}
+          key: ${{ runner.os }}-aosp-clang-v2-${{ steps.resolve.outputs.clang_version }}-${{ hashFiles('scripts/download-clang.sh') }}
 
-          sudo rm -f "$SWAPFILE"
-          sudo fallocate -l 16G "$SWAPFILE"
-          sudo chmod 600 "$SWAPFILE"
-          sudo mkswap "$SWAPFILE"
-          sudo swapon "$SWAPFILE"
-          swapon --show
+      - name: Restore ccache
+        id: ccache-restore
+        if: inputs.build_mode != 'Patch/config validation only'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ccache
+          key: ${{ env.CCACHE_KEY }}
+          restore-keys: |
+            ${{ env.CCACHE_PREFIX }}-
+            ${{ runner.os }}-ccache-v2-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-
+            ${{ runner.os }}-ccache-v2-${{ steps.resolve.outputs.soc }}-
+
+      - name: Restore AnyKernel3 cache
+        if: inputs.build_mode != 'Patch/config validation only'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: AnyKernel3
+          key: ${{ runner.os }}-anykernel3-${{ steps.resolve.outputs.anykernel_commit }}
+          restore-keys: |
+            ${{ runner.os }}-anykernel3-
+
+      - name: Clone kernel source
+        run: bash scripts/clone-sources.sh
+
+      - name: Download AOSP Clang
+        if: inputs.build_mode != 'Patch/config validation only' && steps.clang-cache.outputs.cache-hit != 'true'
+        run: bash scripts/download-clang.sh
 
       - name: Install build dependencies
         run: |
@@ -137,125 +173,161 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             bc \
             bison \
-            flex \
-            libssl-dev \
-            libelf-dev \
-            libdw-dev \
             build-essential \
-            lz4 \
-            git \
-            python3 \
-            curl \
             ccache \
-            dwarves \
+            clang \
             cpio \
+            curl \
+            dwarves \
+            flex \
             gcc-aarch64-linux-gnu \
+            git \
+            jq \
+            libdw-dev \
+            libelf-dev \
+            libssl-dev \
+            lz4 \
+            python3 \
             zip
 
-      - name: Resolve build profile
-        id: resolve
-        env:
-          INPUT_PLATFORM: ${{ inputs.platform }}
-          INPUT_SOURCE_CHOICE: ${{ inputs.source_choice }}
-          INPUT_BRANCH_MODE: ${{ inputs.branch_mode }}
-          INPUT_KERNEL_BRANCH: ${{ inputs.kernel_branch }}
-          INPUT_CLANG_CHOICE: ${{ inputs.clang_choice }}
-          MATRIX_KSU_TYPE: ${{ matrix.ksu_type }}
-        run: bash scripts/resolve-profile.sh
-
-      - name: Set build metadata
+      - name: Set up build swap
+        if: inputs.build_mode != 'Patch/config validation only'
         run: |
           set -euo pipefail
-          SAFE_KERNEL_BRANCH="${KERNEL_BRANCH//\//-}"
-          {
-            echo "BUILD_TIMESTAMP=$(date -u +'%Y%m%d_%H%M')"
-            echo "SAFE_KERNEL_BRANCH=${SAFE_KERNEL_BRANCH}"
-            echo "CCACHE_PREFIX=${RUNNER_OS}-ccache-${SOC}-${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}"
-            echo "CCACHE_KEY=${RUNNER_OS}-ccache-${SOC}-${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}-${CLANG_VERSION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          } >> "$GITHUB_ENV"
-
-      - name: Restore AOSP Clang cache
-        id: clang-cache
-        uses: actions/cache@v4
-        with:
-          path: toolchains/${{ steps.resolve.outputs.clang_version }}
-          key: ${{ runner.os }}-aosp-clang-${{ steps.resolve.outputs.clang_version }}
-
-      - name: Restore ccache
-        id: ccache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .ccache
-          key: ${{ env.CCACHE_KEY }}
-          restore-keys: |
-            ${{ env.CCACHE_PREFIX }}-
-            ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-
-            ${{ runner.os }}-ccache-${{ steps.resolve.outputs.soc }}-
-
-      - name: Restore AnyKernel3 cache
-        uses: actions/cache@v4
-        with:
-          path: AnyKernel3
-          key: ${{ runner.os }}-anykernel3-${{ steps.resolve.outputs.anykernel_commit }}
-          restore-keys: |
-            ${{ runner.os }}-anykernel3-
-
-      - name: Download AOSP Clang
-        if: steps.clang-cache.outputs.cache-hit != 'true'
-        run: bash scripts/download-clang.sh
+          SWAPFILE="${RUNNER_TEMP:-/tmp}/kernel-build-swapfile"
+          TOTAL_GB="$(awk '/MemTotal/ {printf "%d", $2 / 1024 / 1024}' /proc/meminfo)"
+          SWAP_GB=8
+          if (( TOTAL_GB < 12 )); then
+            SWAP_GB=16
+          fi
+          if ! swapon --show=NAME --noheadings | grep -Fxq "$SWAPFILE"; then
+            sudo rm -f "$SWAPFILE"
+            sudo fallocate -l "${SWAP_GB}G" "$SWAPFILE"
+            sudo chmod 600 "$SWAPFILE"
+            sudo mkswap "$SWAPFILE"
+            sudo swapon "$SWAPFILE"
+          fi
+          sudo sysctl vm.swappiness=10
+          free -h
+          swapon --show
 
       - name: Validate AOSP Clang
+        if: inputs.build_mode != 'Patch/config validation only'
         run: |
           set -euo pipefail
           test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang"
+          "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang" --version | head -n 1
 
-      - name: Clone kernel source
-        run: bash scripts/clone-sources.sh
-
-      - name: Compile kernel
+      - name: Apply integrations and build
         run: bash "${GITHUB_WORKSPACE}/scripts/compile-kernel.sh"
 
-      - name: Make AnyKernel3 zip
+      - name: Make device-checked AnyKernel3 package
+        id: package
+        if: inputs.build_mode != 'Patch/config validation only'
         run: bash scripts/make-anykernel-zip.sh
 
-      - name: Create GitHub Release
-        run: |
-          set -euo pipefail
-          REL_NAME="${SOC}_${SOURCE_SLUG}-${SAFE_KERNEL_BRANCH}_${KSU_TYPE}_${BUILD_TIMESTAMP}"
-          ZIP_FILE="${GITHUB_WORKSPACE}/${ZIP_NAME}.zip"
-          IMAGE_FILE="${GITHUB_WORKSPACE}/${SOC}/out/arch/arm64/boot/Image"
-
-          test -f "${ZIP_FILE}"
-          test -f "${IMAGE_FILE}"
-
-          gh release create "$REL_NAME" \
-            --title "$REL_NAME" \
-            --notes "" \
-            "$ZIP_FILE" \
-            "$IMAGE_FILE"
-
-      - name: Publish susfs diagnostics
+      - name: Publish build diagnostics
         if: always() && steps.resolve.outcome == 'success'
         run: bash scripts/publish-diagnostics.sh
 
-      - name: Upload build artifacts
-        if: always() && steps.resolve.outcome == 'success'
-        uses: actions/upload-artifact@v4
+      - name: Upload flashable package
+        if: success() && inputs.build_mode != 'Patch/config validation only'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: build-${{ steps.resolve.outputs.soc }}-${{ steps.resolve.outputs.source_slug }}-${{ steps.resolve.outputs.ksu_type }}-${{ env.BUILD_TIMESTAMP }}
-          if-no-files-found: ignore
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+          path: ${{ github.workspace }}/release-assets/
+
+      - name: Upload build diagnostics
+        if: always() && steps.resolve.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.DIAGNOSTICS_NAME }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+          include-hidden-files: true
           path: |
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/build.log
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/integration-smoke.log
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-source-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-hook-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/susfs-proof.txt
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/nomount-source-proof.txt
+            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/nomount-proof.txt
             ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/.config
-            ${{ github.workspace }}/${{ steps.resolve.outputs.soc }}/out/arch/arm64/boot/Image
-            ${{ github.workspace }}/${{ env.ZIP_NAME }}.zip
 
       - name: Save ccache
-        if: always() && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
-        uses: actions/cache/save@v4
+        if: always() && inputs.build_mode != 'Patch/config validation only' && steps.ccache-restore.outputs.cache-hit != 'true' && steps.ccache-restore.outputs.cache-primary-key != '' && hashFiles('.ccache/**') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+
+  release:
+    name: Publish GitHub Release
+    if: inputs.build_mode == 'Full build and publish release'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_NAME: ${{ needs.build.outputs.release_name }}
+
+    steps:
+      - name: Download verified build outputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: release-package
+
+      - name: Verify release checksums
+        run: |
+          set -euo pipefail
+          cd release-package
+          sha256sum --check SHA256SUMS
+
+      - name: Create or update release
+        run: |
+          set -euo pipefail
+          ASSET_DIR="${GITHUB_WORKSPACE}/release-package"
+          NOTES_FILE="${ASSET_DIR}/release-notes.md"
+
+          ensure_release() {
+            local attempt
+            if gh release view "$RELEASE_NAME" >/dev/null 2>&1; then
+              gh release edit "$RELEASE_NAME" --title "$RELEASE_NAME" --notes-file "$NOTES_FILE"
+              return 0
+            fi
+            for attempt in 1 2 3; do
+              if timeout 90 gh release create "$RELEASE_NAME" \
+                --target "$GITHUB_SHA" \
+                --title "$RELEASE_NAME" \
+                --notes-file "$NOTES_FILE"; then
+                return 0
+              fi
+              gh release view "$RELEASE_NAME" >/dev/null 2>&1 && return 0
+              sleep $((attempt * 5))
+            done
+            return 1
+          }
+
+          upload_asset() {
+            local file="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              timeout 240 gh release upload "$RELEASE_NAME" "$file" --clobber && return 0
+              sleep $((attempt * 5))
+            done
+            return 1
+          }
+
+          ensure_release
+          for asset in "$ASSET_DIR"/*.zip "$ASSET_DIR"/Image-* "$ASSET_DIR"/build-info.json "$ASSET_DIR"/SHA256SUMS; do
+            upload_asset "$asset"
+          done

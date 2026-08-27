@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Emit susfs diagnostics into the GitHub Actions job summary.
+# Emit build diagnostics into the GitHub Actions job summary.
 #
 # Required env:
 #   SOC
@@ -34,9 +34,11 @@ append_file_block() {
 }
 
 {
-  echo "### susfs diagnostics"
+  echo "### Build diagnostics"
   echo
   echo "- Root solution: ${KSU_TYPE}"
+  echo "- Target: ${TARGET_NAME:-unknown}"
+  echo "- Device check: ${DEVICE_NAMES:-unknown}"
   echo "- Branch: ${KERNEL_BRANCH}"
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"
@@ -46,13 +48,19 @@ append_file_block() {
   if [[ -n "${SUSFS_REF:-}" ]]; then
     echo "- susfs ref: ${SUSFS_REF}"
     echo "- susfs commit: \`${SUSFS_COMMIT}\`"
+    echo "- susfs version: v${SUSFS_VERSION:-unknown}"
+  fi
+  if [[ -n "${NOMOUNT_REF:-}" ]]; then
+    echo "- NoMount ref: ${NOMOUNT_REF}"
+    echo "- NoMount commit: \`${NOMOUNT_COMMIT}\`"
+    echo "- NoMount version: v${NOMOUNT_VERSION:-unknown}"
   fi
   echo
 
   if [[ -f "${SOC}/out/.config" ]]; then
     echo '#### .config snapshot'
     echo '```text'
-    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK' "${SOC}/out/.config" || true
+    grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_NOMOUNT=' "${SOC}/out/.config" || true
     echo '```'
     echo
   fi
@@ -60,4 +68,6 @@ append_file_block() {
   append_file_block "susfs-source-proof.txt" "${SOC}/susfs-source-proof.txt"
   append_file_block "susfs-hook-proof.txt"   "${SOC}/susfs-hook-proof.txt"
   append_file_block "susfs-proof.txt"        "${SOC}/susfs-proof.txt"
+  append_file_block "nomount-source-proof.txt" "${SOC}/nomount-source-proof.txt"
+  append_file_block "nomount-proof.txt"        "${SOC}/nomount-proof.txt"
 } >> "$GITHUB_STEP_SUMMARY"

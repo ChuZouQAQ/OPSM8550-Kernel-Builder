@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 #
 # susfs patching helpers and the end-to-end apply routine. Sourced, not
-# executed. Depends on lib/kernel-helpers.sh.
+# executed. Depends on lib/git-helpers.sh and lib/kernel-helpers.sh.
 #
+
+version_is_at_least() {
+  local actual="$1"
+  local minimum="$2"
+  [[ "$(printf '%s\n' "$minimum" "$actual" | sort -V | head -n 1)" == "$minimum" ]]
+}
 
 apply_susfs_task_mmu_fix() {
   local file="fs/proc/task_mmu.c"
@@ -240,12 +246,27 @@ apply_susfs_full() {
   rm -rf susfs
   git init -q susfs
   git -C susfs remote add origin "$SUSFS_REPO"
-  git -C susfs fetch --depth=1 --no-tags origin "$susfs_commit"
+  git_fetch_retry susfs --depth=1 --no-tags origin "$susfs_commit"
   git -C susfs checkout -q --detach FETCH_HEAD
   test "$(git -C susfs rev-parse HEAD)" = "$susfs_commit" || {
     echo "::error::susfs checkout does not match resolved commit $susfs_commit ($susfs_ref)."
     exit 1
   }
+
+  : "${SUSFS_MIN_VERSION:?SUSFS_MIN_VERSION must be resolved before applying SUSFS}"
+  SUSFS_VERSION="$(sed -nE 's/^#define SUSFS_VERSION "v?([^"]+)"/\1/p' \
+    susfs/kernel_patches/include/linux/susfs.h | head -n 1)"
+  if [[ -z "$SUSFS_VERSION" ]]; then
+    echo "::error::Could not detect the SUSFS version at $susfs_commit."
+    exit 1
+  fi
+  if ! version_is_at_least "$SUSFS_VERSION" "$SUSFS_MIN_VERSION"; then
+    echo "::error::SUSFS v${SUSFS_VERSION} is older than required v${SUSFS_MIN_VERSION}."
+    exit 1
+  fi
+  export SUSFS_VERSION
+  echo "SUSFS_VERSION=$SUSFS_VERSION" >> "$GITHUB_ENV"
+  echo "[+] Using SUSFS v${SUSFS_VERSION} from $susfs_commit ($susfs_ref)."
 
   (
     cd susfs || exit 1

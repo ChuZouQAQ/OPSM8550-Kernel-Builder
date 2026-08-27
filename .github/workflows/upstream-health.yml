@@ -1,0 +1,77 @@
+name: Check upstream health
+
+on:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-health-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-all:
+    name: Resolve all profiles
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pipeline
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve exact upstream commits
+        run: bash scripts/check-upstreams.sh
+
+  patch-smoke:
+    name: Patch smoke ${{ matrix.profile }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        profile:
+          - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
+          - SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
+          - SM8650 | OnePlus 12 | LineageOS (recommended)
+    steps:
+      - name: Checkout pipeline
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve exact upstream commits
+        env:
+          INPUT_BUILD_PROFILE: ${{ matrix.profile }}
+          INPUT_BRANCH_MODE: Use the recommended branch automatically
+          INPUT_KERNEL_BRANCH: ""
+          INPUT_CLANG_CHOICE: Recommended (auto-select based on branch)
+          INPUT_ROOT_SOLUTION: ReSukiSU + SUSFS + NoMount (experimental)
+          INPUT_BUILD_MODE: Patch/config validation only
+        run: bash scripts/resolve-profile.sh
+
+      - name: Clone exact source revisions
+        run: bash scripts/clone-sources.sh
+
+      - name: Install validation dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            bc \
+            bison \
+            build-essential \
+            ccache \
+            clang \
+            dwarves \
+            flex \
+            libelf-dev \
+            libssl-dev \
+            patch
+
+      - name: Apply integrations and validate config
+        run: bash scripts/compile-kernel.sh

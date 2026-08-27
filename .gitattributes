@@ -1,5 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# Shell scripts must always use LF so they run on the Linux CI runner
+# CI, shell, workflow, and documentation files use stable LF line endings
+.gitattributes text eol=lf
 *.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf

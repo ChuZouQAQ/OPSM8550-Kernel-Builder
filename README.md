@@ -1,217 +1,166 @@
 # OnePlus Snapdragon Kernel Builder
 
-GitHub Actions workflow for building OnePlus kernels for Snapdragon 8 Gen 1, 8 Gen 2, and 8 Gen 3 devices.
+GitHub Actions pipeline for building OnePlus Snapdragon 8 Gen 1, 8 Gen 2,
+and 8 Gen 3 kernels. The repository contains the build pipeline, validation,
+packaging, and release automation; kernel sources are resolved from upstream
+repositories at build time.
 
-This repository only contains the CI pipeline and workflow UI. It does not ship kernel source code. The workflow helps you:
+## Supported build profiles
 
-- pick a supported OnePlus Snapdragon platform
-- resolve the matching upstream kernel and `-modules` repositories
-- auto-detect a suitable branch and Clang version for common cases
-- apply the selected KernelSU / ReSukiSU variant
-- build a raw `Image`
-- package an `AnyKernel3` flashable zip
-- publish build outputs to both GitHub Releases and workflow artifacts
+The workflow exposes only device/source combinations that are intentionally
+configured. This avoids late failures caused by selecting an incompatible SoC
+and source independently.
 
-## Supported Platforms
+| SoC | Target device | AnyKernel codename check | Source preset |
+| --- | --- | --- | --- |
+| `sm8450` | OnePlus 10 Pro | `negroni` | OnePlus official |
+| `sm8450` | OnePlus 10T / Ace Pro | `ovaltine` | LineageOS community |
+| `sm8550` | OnePlus 11 | `salami` | OnePlus official |
+| `sm8550` | OnePlus 11 / 12R | `salami`, `aston` | LineageOS |
+| `sm8550` | OnePlus 11 / 12R | `salami`, `aston` | crDroid |
+| `sm8550` | OnePlus 12R | `aston` | OnePlus 12R development |
+| `sm8650` | OnePlus 12 | `waffle` | OnePlus official |
+| `sm8650` | OnePlus 12 | `waffle` | LineageOS |
+| `sm8650` | OnePlus 12 | `waffle` | crDroid |
 
-| Platform | SoC | Typical devices | Recommended source | Kernel config presets |
-| --- | --- | --- | --- | --- |
-| Snapdragon 8 Gen 1 | `sm8450` | OnePlus 10 Pro | `lineage-ovaltine-dev` | `vendor/waipio_GKI.config` + `vendor/oplus/waipio_GKI.config` + `vendor/debugfs.config` |
-| Snapdragon 8 Gen 2 | `sm8550` | OnePlus 11 / 12R | `LineageOS` | `vendor/kalama_GKI.config` + `vendor/oplus/kalama_GKI.config` + `vendor/debugfs.config` |
-| Snapdragon 8 Gen 3 | `sm8650` | OnePlus 12 | `LineageOS` | `vendor/pineapple_GKI.config` + `vendor/oplus/pineapple_GKI.config` |
+The OnePlus 10T community source is intentionally labeled `ovaltine`; it is
+not presented as a OnePlus 10 Pro source.
 
-Additional source presets:
+## Build modes
 
-- all supported platforms: `OnePlus official source`
-- `SM8550`: `crDroid`, `OnePlus 12R development`
-- `SM8650`: `crDroid`
+`Build OnePlus Kernel` offers three modes:
 
-## Highlights
+- `Patch/config validation only` clones exact upstream revisions, applies the
+  selected KernelSU/SUSFS/NoMount integration, verifies the final config, and
+  smoke-compiles the affected SUSFS, VFS, proc, reboot, and NoMount objects
+  without spending time on a full kernel compile.
+- `Full build (artifact only)` builds and uploads a 14-day workflow artifact.
+  This is the default and does not create a permanent GitHub Release.
+- `Full build and publish release` builds the same verified artifact, then a
+  separate least-privilege job publishes the release.
 
-- Single workflow covering multiple OnePlus Snapdragon generations
-- Beginner-friendly workflow inputs that resolve to real repo, branch, SoC, and config values
-- AOSP Clang caching plus `ccache` reuse for faster repeat builds
-- Built-in support for `KernelSU`, `KernelSU-Next`, `KowSU`, and `ReSukiSU`
-- Platform-aware `susfs` branch selection for supported presets
-- Source-level and binary-level `susfs` verification
-- Automatic `AnyKernel3` packaging, GitHub Release creation, and artifact upload
-
-## Workflow Inputs
-
-The workflow is designed so you can build without memorizing the upstream repo layout.
-
-### Platform
-
-Choose one of:
-
-- `Snapdragon 8 Gen 1 (SM8450 / OnePlus 10 Pro)`
-- `Snapdragon 8 Gen 2 (SM8550 / OnePlus 11 / 12R)`
-- `Snapdragon 8 Gen 3 (SM8650 / OnePlus 12)`
-
-### Source
+## Root integrations
 
 Available presets:
 
-- `Recommended source for this platform`
-- `OnePlus official source`
-- `LineageOS / community source`
-- `crDroid source`
-- `OnePlus 12R development source (SM8550 only)`
+- no root changes
+- official KernelSU
+- KernelSU-Next
+- KowSU
+- ReSukiSU
+- ReSukiSU with SUSFS
+- ReSukiSU with SUSFS and NoMount (experimental)
 
-Unsupported combinations are rejected automatically.
+KPM is not exposed because current ReSukiSU no longer supports it. SUSFS
+branches are selected from the SoC and Android/kernel branch, and known vendor
+include drift is repaired only for explicitly recognized conflicts. Unknown
+patch rejects fail closed and are included in diagnostics.
 
-### Branch Mode
+SUSFS builds require upstream v2.2.0 or newer and explicitly verify the
+`SUS_MAP` and `OPEN_REDIRECT` features in the final config. The NoMount preset
+integrates the exact resolved `master` commit, enables `CONFIG_NOMOUNT=y`, and
+checks both source wiring and final kernel signatures. NoMount hooks VFS
+operations and is marked experimental by its upstream project, so it remains
+an explicit opt-in instead of changing existing build presets.
 
-- `Use the recommended branch automatically`
-- `I want to type the branch name myself`
+## Quick start
 
-Auto mode reads the upstream default branch directly from the selected repo.
+1. Open `Actions` -> `Build OnePlus Kernel` -> `Run workflow`.
+2. Select one device/source profile.
+3. Keep automatic branch and Clang selection unless testing a known branch.
+4. Select the root integration.
+5. Start with `Patch/config validation only` after an upstream update, then run
+   a full build when validation passes.
+6. Use release mode only for an artifact you intend to keep or distribute.
 
-Manual mode expects a branch such as:
+Manual branch names are validated with Git before they are written to GitHub
+Actions environment files. Every kernel, modules, KernelSU, SUSFS, NoMount,
+and AnyKernel input is resolved to an exact commit before cloning.
 
-- `lineage-23.2`
-- `lineage-23.0`
-- `16.0`
-- `oneplus/sm8550_v_15.0.0_oneplus11`
-- `oneplus/sm8650_v_15.0.0_oneplus12`
+## Build performance
 
-For `OnePlus official source`, the workflow now switches to the official layout automatically:
+The full build passes `CC="ccache clang"` and host compiler wrappers directly
+on every `make` invocation so Kbuild cannot replace the ccache launcher.
+Build timestamps, user, and host metadata are deterministic for a given kernel
+commit, which improves repeat-build cache hits.
 
-- kernel repo: `OnePlusOSS/android_kernel_oneplus_<soc>`
-- matching modules/devicetree repo: `OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_<soc>`
-- kernel tree mount point: `kernel_platform/msm-kernel`
-- build still goes through the same lightweight `make O=out ...` flow used by community sources, but with the official relative paths preserved
+The workflow also:
 
-### Clang Version
+- clones kernel and modules repositories in parallel at exact commits
+- caches the exact pinned AOSP Clang archive
+- restores a profile/branch/compiler-specific 3 GB compressed ccache
+- reports config, compile, total time, and ccache statistics in the job summary
+- uses an adaptive 8/16 GB swap file with low swappiness for full builds
 
-You can keep `Recommended (auto-select based on branch)` or force a manual preset:
+GitHub cache entries are an optimization only. A build remains able to download
+or regenerate every cached input.
 
-- `clang-r596125 (Clang 22.0.2 / current AOSP mainline era)`
-- `clang-r563880c (Android 16 / LineageOS 23.2+ era)`
-- `clang-r547379 (Android 16 / LineageOS 23.0 era)`
-- `clang-r536225 (Android 15 / LineageOS 22.2 era)`
-- `clang-r487747c (Android 14 / LineageOS 21 era)`
-- `clang-r450784d (Android 13 / LineageOS 20 era)`
-- `clang-r416183b1 (Android 12 / LineageOS 19.1 era)`
+## Safe packaging and provenance
 
-When auto mode is selected, the workflow maps common branch names to the matching Clang generation and falls back to `clang-r563880c` if it cannot infer a safer default.
+Generated AnyKernel3 ZIPs enable `do.devicecheck=1` and contain only the
+codenames assigned to the selected profile. Android version checking is also
+enabled when the selected branch identifies a known Android generation.
 
-### Root / KernelSU Preset
+Each full build produces `release-assets/` containing:
 
-Available options:
+- a device-checked AnyKernel3 ZIP
+- a uniquely named raw `Image`
+- `build-info.json` with all exact source commits and the workflow run URL
+- `SHA256SUMS`
+- generated `release-notes.md`
 
-- `No root changes`
-- `Official KernelSU`
-- `KernelSU-Next`
-- `KowSU`
-- `ReSukiSU`
-- `ReSukiSU + susfs`
+GitHub Actions uploads these release-ready files as one flat package artifact
+and keeps build logs, configuration, SUSFS proofs, and NoMount proofs in a separate diagnostics
+artifact. The release job downloads only the package artifact and verifies its
+checksums before publishing.
 
-KPM presets are not exposed because ReSukiSU removed KPM upstream in June 2026
-after determining that it was unmaintained and caused multiple bugs.
+The same `build-info.json` is embedded in the flashable ZIP. Keep a known-good
+stock boot image available and never flash a package whose device check does
+not match the phone.
 
-## Recommended Quick Start
+## CI security and reliability
 
-1. Fork this repository to your own GitHub account.
-2. Open `Actions` -> `Build OnePlus Kernel` -> `Run workflow`.
-3. For the safest first build, keep:
-   - `Source`: `Recommended source for this platform`
-   - `Branch Mode`: `Use the recommended branch automatically`
-   - `Clang Version`: `Recommended (auto-select based on branch)`
-4. Pick the root preset you want and start the workflow.
+The build job has read-only repository permissions and checkout credentials are
+not persisted. External kernel Makefiles therefore do not run in a job holding
+release write credentials. Release publication runs separately and receives
+`contents: write` only after the build artifact succeeds.
 
-## Workflow Flow
+Network Git operations use bounded retries. Release creation and asset uploads
+are idempotent, time-limited, and retried, preventing a stalled upload from
+holding the build runner indefinitely.
 
-Each build run goes through the same high-level flow:
+All third-party GitHub Actions are pinned to full commit hashes. AOSP Clang
+archive URLs are pinned to exact Gitiles commits, and changing the downloader
+invalidates the toolchain cache.
 
-1. Resolve your platform, source preset, branch, Clang, and root preset into a real build profile.
-2. Validate that both the kernel repo and matching `-modules` repo expose the selected branch, then resolve every source input to an exact commit for the run.
-3. Restore cached Clang and `ccache`, or download the required AOSP Clang if needed.
-4. Clone the kernel source and matching modules tree.
-   - official OnePlus source builds are re-laid out into the upstream `kernel_platform/msm-kernel` structure before compilation
-5. Apply the selected KernelSU / ReSukiSU changes and generate the final kernel config.
-6. Build `Image`.
-7. Package the output into an `AnyKernel3` zip.
-8. Publish the release assets and upload workflow artifacts.
+## Validation and upstream health
 
-## susfs Behavior
+Pushes and pull requests run:
 
-For `ReSukiSU + susfs` presets, the workflow automatically selects a platform-aware `susfs4ksu` branch:
+- Bash syntax checks
+- ShellCheck at warning severity
+- offline tests for all nine profile mappings, root mappings, Clang selection,
+  SUSFS selection/version floor, NoMount selection/wiring, Android version
+  inference, and workflow option synchronization
+- actionlint for all workflow files
 
-- `SM8450` -> `gki-android13-5.10`
-- `SM8550` + Android 13 style branches -> `gki-android13-5.15`
-- `SM8550` + Android 14+ style branches -> `gki-android14-5.15`
-- `SM8650` -> `gki-android14-6.1`
+`Check upstream health` runs every Monday and can also be started manually. It
+resolves exact commits for all nine profiles and performs ReSukiSU + SUSFS +
+NoMount patch/config smoke tests on representative SM8450, SM8550, and SM8650
+sources.
 
-Additional safeguards:
+## Important limitations
 
-- `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS` is kept disabled by default for easier verification
-- source integration is verified before the full build continues
-- final binaries are checked for `susfs` signatures
-- ReSukiSU builds are validated to ensure `SUSFS_INLINE_HOOK` is used instead of tracepoint or manual fallback modes
-
-## Build Outputs
-
-Successful runs produce:
-
-- `Image`
-- `<soc>_<ksu_type>_<timestamp>.zip`
-
-The workflow also uploads:
-
-- `build.log`
-- final `out/.config`
-- built `Image`
-- final zip package
-- `susfs-source-proof.txt` when a `susfs` preset is used
-- `susfs-hook-proof.txt` when a `susfs` preset is used
-- `susfs-proof.txt` when a `susfs` preset is used
-
-The same `susfs` diagnostics are also copied into the GitHub Actions job summary.
-
-## Environment
-
-GitHub Actions runner setup:
-
-- `ubuntu-latest`
-- timeout: `120` minutes
-- swap: `16GB`
-- cached AOSP Clang toolchains
-- persistent `ccache` reuse across repeated builds
-
-Main build dependencies installed by the workflow:
-
-- `bc`
-- `bison`
-- `flex`
-- `libssl-dev`
-- `libelf-dev`
-- `libdw-dev`
-- `build-essential`
-- `lz4`
-- `git`
-- `python3`
-- `curl`
-- `ccache`
-- `dwarves`
-- `cpio`
-- `gcc-aarch64-linux-gnu`
-- `zip`
-
-## Important Notes
-
-- `KernelSU-Next-with-susfs` is intentionally not exposed in this workflow.
-- ReSukiSU KPM is intentionally not exposed because current ReSukiSU no longer supports it.
-- The kernel repo and matching `-modules` repo must both provide the same branch.
-- Kernel, modules, KernelSU, susfs, and AnyKernel3 inputs are recorded by commit in the job summary and susfs diagnostics.
-- Official OnePlus source uses a different repository naming and on-disk layout from community trees; the workflow now handles that automatically.
-- Some upstreams are community-maintained rather than official LineageOS repositories.
-- Release publishing depends on GitHub token permissions.
-
-## Known Limitations
-
-- This repository only provides the CI workflow, not kernel source code.
-- Build success still depends on upstream branch availability and source compatibility.
-- Official OnePlus branches may require different device-specific testing than community branches even when CI completes successfully.
-- `susfs` patching can still break on upstream tree drift and may need manual adaptation on unusual branches.
-- A successful CI build does not guarantee that a packaged kernel is safe for your exact device or flashing setup.
+- A successful build does not prove that a kernel is safe for every firmware,
+  region, or boot stack of the listed device.
+- Community sources are not official OnePlus sources.
+- Manual or unusual branches may disable Android version checking when their
+  version cannot be inferred safely.
+- This pipeline builds the raw GKI `Image`; it does not rebuild every vendor
+  module or replace device-specific firmware.
+- NoMount modifies VFS behavior and upstream labels it experimental. Test its
+  dedicated preset on a recoverable device before distributing it.
+- Runtime performance tuning is intentionally left at upstream/vendor config
+  defaults. Options such as KASAN, LTO mode, scheduler changes, and compiler
+  optimization flags require device-specific boot, stability, power, and
+  benchmark testing before becoming defaults.

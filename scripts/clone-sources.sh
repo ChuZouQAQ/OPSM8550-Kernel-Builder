@@ -5,6 +5,10 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/git-helpers.sh
+. "${SCRIPT_DIR}/lib/git-helpers.sh"
+
 : "${KERNEL_REPO:?}"
 : "${MODULES_REPO:?}"
 : "${KERNEL_BRANCH:?}"
@@ -32,7 +36,7 @@ clone_repo() {
 
   git init -q "$dest"
   git -C "$dest" remote add origin "$repo"
-  git -C "$dest" fetch --depth=1 --no-tags origin "$commit" \
+  git_fetch_retry "$dest" --depth=1 --no-tags origin "$commit" \
     || { echo "::error::Failed to fetch $label commit '$commit' for branch '$branch': $repo"; exit 1; }
   git -C "$dest" checkout -q --detach FETCH_HEAD
   test "$(git -C "$dest" rev-parse HEAD)" = "$commit" \

@@ -1,26 +1,56 @@
 #!/usr/bin/env bash
 #
-# Build the AnyKernel3 flashable zip from the freshly built Image.
-#
-# Required env:
-#   SOC
-#   KSU_TYPE
-#   BUILD_TIMESTAMP
-#   GITHUB_ENV
-#   ANYKERNEL_REPO
-#   ANYKERNEL_COMMIT
+# Create a device-checked AnyKernel3 package plus release provenance files.
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/git-helpers.sh
+. "${SCRIPT_DIR}/lib/git-helpers.sh"
+# shellcheck source=lib/anykernel-helpers.sh
+. "${SCRIPT_DIR}/lib/anykernel-helpers.sh"
+
 : "${SOC:?}"
+: "${PROFILE_ID:?}"
+: "${TARGET_NAME:?}"
+: "${DEVICE_NAMES:?}"
+: "${SOURCE_NAME:?}"
+: "${KERNEL_BRANCH:?}"
+: "${KERNEL_COMMIT:?}"
+: "${MODULES_COMMIT:?}"
+: "${CLANG_VERSION:?}"
 : "${KSU_TYPE:?}"
 : "${BUILD_TIMESTAMP:?}"
 : "${GITHUB_ENV:?}"
+: "${GITHUB_OUTPUT:?}"
 : "${ANYKERNEL_REPO:?}"
 : "${ANYKERNEL_COMMIT:?}"
 
-ZIP_NAME="${SOC}_${KSU_TYPE}_${BUILD_TIMESTAMP}"
-echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+SUPPORTED_ANDROID_VERSIONS="${SUPPORTED_ANDROID_VERSIONS:-}"
+KSU_COMMIT="${KSU_COMMIT:-}"
+SUSFS_REF="${SUSFS_REF:-}"
+SUSFS_COMMIT="${SUSFS_COMMIT:-}"
+SUSFS_VERSION="${SUSFS_VERSION:-}"
+NOMOUNT_REF="${NOMOUNT_REF:-}"
+NOMOUNT_COMMIT="${NOMOUNT_COMMIT:-}"
+NOMOUNT_VERSION="${NOMOUNT_VERSION:-}"
+GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-local/OPSM8550-Kernel-Builder}"
+GITHUB_RUN_ID="${GITHUB_RUN_ID:-local}"
+GITHUB_SHA="${GITHUB_SHA:-local}"
+
+SHORT_KERNEL_COMMIT="${KERNEL_COMMIT:0:12}"
+ZIP_NAME="${PROFILE_ID}_${KSU_TYPE}_${SHORT_KERNEL_COMMIT}_${BUILD_TIMESTAMP}"
+ASSET_DIR="${GITHUB_WORKSPACE:-$(pwd)}/release-assets"
+
+{
+  echo "ZIP_NAME=$ZIP_NAME"
+  echo "RELEASE_ASSET_DIR=$ASSET_DIR"
+} >> "$GITHUB_ENV"
+{
+  echo "zip_name=$ZIP_NAME"
+  echo "asset_dir=$ASSET_DIR"
+} >> "$GITHUB_OUTPUT"
 
 if [[ -d AnyKernel3/.git ]]; then
   echo "[+] Reusing cached AnyKernel3 checkout."
@@ -28,7 +58,7 @@ if [[ -d AnyKernel3/.git ]]; then
     cd AnyKernel3
     git clean -fdx
     git remote set-url origin "$ANYKERNEL_REPO"
-    git fetch --depth=1 --no-tags origin "$ANYKERNEL_COMMIT"
+    git_fetch_retry . --depth=1 --no-tags origin "$ANYKERNEL_COMMIT"
     git checkout -q --detach FETCH_HEAD
     git reset --hard "$ANYKERNEL_COMMIT"
   )
@@ -36,21 +66,114 @@ else
   rm -rf AnyKernel3
   git init -q AnyKernel3
   git -C AnyKernel3 remote add origin "$ANYKERNEL_REPO"
-  git -C AnyKernel3 fetch --depth=1 --no-tags origin "$ANYKERNEL_COMMIT"
+  git_fetch_retry AnyKernel3 --depth=1 --no-tags origin "$ANYKERNEL_COMMIT"
   git -C AnyKernel3 checkout -q --detach FETCH_HEAD
 fi
 
 test "$(git -C AnyKernel3 rev-parse HEAD)" = "$ANYKERNEL_COMMIT"
 
-sed -i 's/kernel.string=KernelSU by KernelSU Developers/kernel.string=KernelSU by TG@AzusaMyo/' \
-  AnyKernel3/anykernel.sh
-grep -q 'kernel.string=KernelSU by TG@AzusaMyo' AnyKernel3/anykernel.sh
+ANYKERNEL_SCRIPT="AnyKernel3/anykernel.sh"
+configure_anykernel_properties \
+  "$ANYKERNEL_SCRIPT" \
+  "OnePlus Kernel (${KSU_TYPE}) for ${TARGET_NAME}" \
+  "$DEVICE_NAMES" \
+  "$SUPPORTED_ANDROID_VERSIONS"
 
+rm -rf "$ASSET_DIR"
+mkdir -p "$ASSET_DIR"
+
+jq -n \
+  --arg profile_id "$PROFILE_ID" \
+  --arg target "$TARGET_NAME" \
+  --arg devices "$DEVICE_NAMES" \
+  --arg android_versions "$SUPPORTED_ANDROID_VERSIONS" \
+  --arg soc "$SOC" \
+  --arg source "$SOURCE_NAME" \
+  --arg branch "$KERNEL_BRANCH" \
+  --arg kernel_commit "$KERNEL_COMMIT" \
+  --arg modules_commit "$MODULES_COMMIT" \
+  --arg clang "$CLANG_VERSION" \
+  --arg root_solution "$KSU_TYPE" \
+  --arg ksu_commit "$KSU_COMMIT" \
+  --arg susfs_ref "$SUSFS_REF" \
+  --arg susfs_commit "$SUSFS_COMMIT" \
+  --arg susfs_version "$SUSFS_VERSION" \
+  --arg nomount_ref "$NOMOUNT_REF" \
+  --arg nomount_commit "$NOMOUNT_COMMIT" \
+  --arg nomount_version "$NOMOUNT_VERSION" \
+  --arg anykernel_commit "$ANYKERNEL_COMMIT" \
+  --arg builder_commit "$GITHUB_SHA" \
+  --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+  --arg built_at "$BUILD_TIMESTAMP" \
+  '{
+    profile_id: $profile_id,
+    target: $target,
+    device_codenames: ($devices | split(" ")),
+    supported_android_versions: $android_versions,
+    soc: $soc,
+    source: $source,
+    branch: $branch,
+    kernel_commit: $kernel_commit,
+    modules_commit: $modules_commit,
+    clang: $clang,
+    root_solution: $root_solution,
+    kernelsu_commit: $ksu_commit,
+    susfs_ref: $susfs_ref,
+    susfs_commit: $susfs_commit,
+    susfs_version: $susfs_version,
+    nomount_ref: $nomount_ref,
+    nomount_commit: $nomount_commit,
+    nomount_version: $nomount_version,
+    anykernel_commit: $anykernel_commit,
+    builder_commit: $builder_commit,
+    workflow_run: $run_url,
+    built_at_utc: $built_at
+  }' > "$ASSET_DIR/build-info.json"
+
+cp "$ASSET_DIR/build-info.json" AnyKernel3/build-info.json
 cp "${SOC}/out/arch/arm64/boot/Image" AnyKernel3/Image
 
 (
   cd AnyKernel3
-  zip -r9 "../${ZIP_NAME}.zip" . -x .git/\* .github/\*
+  zip -r9 "${ASSET_DIR}/${ZIP_NAME}.zip" . -x .git/\* .github/\*
 )
 
-test -f "${ZIP_NAME}.zip"
+IMAGE_ASSET="Image-${ZIP_NAME}"
+cp "${SOC}/out/arch/arm64/boot/Image" "${ASSET_DIR}/${IMAGE_ASSET}"
+
+SUSFS_NOTE="disabled"
+NOMOUNT_NOTE="disabled"
+if [[ -n "$SUSFS_VERSION" ]]; then
+  SUSFS_NOTE="v${SUSFS_VERSION} (${SUSFS_REF}, ${SUSFS_COMMIT})"
+fi
+if [[ -n "$NOMOUNT_VERSION" ]]; then
+  NOMOUNT_NOTE="v${NOMOUNT_VERSION} (${NOMOUNT_REF}, ${NOMOUNT_COMMIT})"
+fi
+
+cat > "$ASSET_DIR/release-notes.md" <<EOF_NOTES
+## Build profile
+
+- Target: ${TARGET_NAME} (${SOC})
+- Allowed device codenames: ${DEVICE_NAMES}
+- Source: ${SOURCE_NAME}
+- Branch: ${KERNEL_BRANCH}
+- Kernel commit: \`${KERNEL_COMMIT}\`
+- Modules commit: \`${MODULES_COMMIT}\`
+- Clang: ${CLANG_VERSION}
+- Root solution: ${KSU_TYPE}
+- SUSFS: ${SUSFS_NOTE}
+- NoMount: ${NOMOUNT_NOTE}
+
+The flashable ZIP performs a device-codename check before modifying the boot partition.
+Only flash it on the listed target devices, and keep a known-good stock boot image available.
+See \`build-info.json\` and \`SHA256SUMS\` for provenance and integrity data.
+EOF_NOTES
+
+(
+  cd "$ASSET_DIR"
+  sha256sum "${ZIP_NAME}.zip" "$IMAGE_ASSET" build-info.json > SHA256SUMS
+)
+
+test -s "$ASSET_DIR/${ZIP_NAME}.zip"
+test -s "$ASSET_DIR/$IMAGE_ASSET"
+test -s "$ASSET_DIR/SHA256SUMS"

@@ -22,6 +22,11 @@ verify_susfs_source_integration() {
     exit 1
   }
 
+  grep -Fq "#define SUSFS_VERSION \"v${SUSFS_VERSION}\"" include/linux/susfs.h || {
+    echo "::error::Integrated SUSFS headers do not report expected version v${SUSFS_VERSION}."
+    exit 1
+  }
+
   grep -Fq 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || {
     echo "::error::fs/Makefile does not reference susfs.o after applying susfs patches."
     exit 1
@@ -88,6 +93,8 @@ verify_susfs_source_integration() {
     echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
     echo "susfs_commit=${SUSFS_COMMIT}"
+    echo "susfs_version=${SUSFS_VERSION}"
+    echo "susfs_min_version=${SUSFS_MIN_VERSION}"
     echo "susfs_patch=${SUSFS_PATCH_FILE}"
     grep -Fn 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile || true
     grep -n 'ksu_handle_sys_reboot' kernel/reboot.c | head -n 5 || true
@@ -102,6 +109,11 @@ verify_susfs_source_integration() {
 verify_susfs_binary_presence() {
   local symbol_hits=0
   local string_hits=0
+
+  if [[ -f out/fs/susfs.o ]]; then
+    nm out/fs/susfs.o | grep -E 'susfs_(init|show_version|get_enabled_features)' && symbol_hits=1 || true
+    strings out/fs/susfs.o | grep -E 'susfs is initialized! version:|CMD_SUSFS_SHOW_VERSION' && string_hits=1 || true
+  fi
 
   if [[ -f out/System.map ]]; then
     grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map && symbol_hits=1 || true
@@ -124,7 +136,12 @@ verify_susfs_binary_presence() {
     echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
     echo "susfs_commit=${SUSFS_COMMIT}"
+    echo "susfs_version=${SUSFS_VERSION}"
     echo "susfs_patch=${SUSFS_PATCH_FILE}"
+    if [[ -f out/fs/susfs.o ]]; then
+      nm out/fs/susfs.o | grep -E 'susfs_(init|show_version|get_enabled_features)' | head -n 20 || true
+      strings out/fs/susfs.o | grep -E 'susfs is initialized! version:|CMD_SUSFS_SHOW_VERSION' | head -n 20 || true
+    fi
     if [[ -f out/System.map ]]; then
       grep -E 'susfs_(init|show_version|get_enabled_features)' out/System.map | head -n 20 || true
     fi
@@ -132,6 +149,71 @@ verify_susfs_binary_presence() {
       strings out/vmlinux | grep -E 'susfs is initialized! version:|CMD_SUSFS_SHOW_VERSION|CONFIG_KSU_SUSFS_' | head -n 20 || true
     fi
   } | tee susfs-proof.txt
+}
+
+verify_nomount_source_integration() {
+  local fs_dir="${NOMOUNT_FS_DIR:?}"
+
+  test -f "$fs_dir/nomount/nomount.c" || {
+    echo "::error::NoMount source is missing at $fs_dir/nomount/nomount.c."
+    exit 1
+  }
+  test -f "$fs_dir/nomount/nomount.h" || {
+    echo "::error::NoMount header is missing at $fs_dir/nomount/nomount.h."
+    exit 1
+  }
+  grep -Fq 'obj-$(CONFIG_NOMOUNT) += nomount/' "$fs_dir/Makefile" || {
+    echo "::error::$fs_dir/Makefile does not reference the NoMount directory."
+    exit 1
+  }
+  grep -Fq "source \"${fs_dir}/nomount/Kconfig\"" "$fs_dir/Kconfig" || {
+    echo "::error::$fs_dir/Kconfig does not include the NoMount Kconfig."
+    exit 1
+  }
+  grep -Fq "#define NOMOUNT_VERSION \"${NOMOUNT_VERSION}\"" "$fs_dir/nomount/nomount.h" || {
+    echo "::error::Integrated NoMount headers do not report expected version ${NOMOUNT_VERSION}."
+    exit 1
+  }
+}
+
+verify_nomount_binary_presence() {
+  local symbol_hits=0
+  local string_hits=0
+  local object_file="out/${NOMOUNT_FS_DIR}/nomount/nomount.o"
+
+  if [[ -f "$object_file" ]]; then
+    nm "$object_file" | grep -E 'nomount_(init|key_instantiate|hijacked_lookup)' && symbol_hits=1 || true
+    strings "$object_file" | grep -E 'NoMount Path Redirection VFS Subsystem|NoMount: ' && string_hits=1 || true
+  fi
+
+  if [[ -f out/System.map ]]; then
+    grep -E 'nomount_(init|key_instantiate|hijacked_lookup)' out/System.map && symbol_hits=1 || true
+  fi
+  if [[ -f out/vmlinux ]]; then
+    strings out/vmlinux | grep -E 'NoMount Path Redirection VFS Subsystem|NoMount: ' && string_hits=1 || true
+  fi
+  if [[ "$symbol_hits" -eq 0 && "$string_hits" -eq 0 ]]; then
+    echo "::error::CONFIG_NOMOUNT=y, but no NoMount signature was found in the final kernel artifacts."
+    exit 1
+  fi
+
+  {
+    echo "==== NOMOUNT BINARY PROOF ===="
+    echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "nomount_ref=${NOMOUNT_REF}"
+    echo "nomount_commit=${NOMOUNT_COMMIT}"
+    echo "nomount_version=${NOMOUNT_VERSION}"
+    if [[ -f "$object_file" ]]; then
+      nm "$object_file" | grep -E 'nomount_(init|key_instantiate|hijacked_lookup)' | head -n 20 || true
+      strings "$object_file" | grep -E 'NoMount Path Redirection VFS Subsystem|NoMount: ' | head -n 20 || true
+    fi
+    if [[ -f out/System.map ]]; then
+      grep -E 'nomount_(init|key_instantiate|hijacked_lookup)' out/System.map | head -n 20 || true
+    fi
+    if [[ -f out/vmlinux ]]; then
+      strings out/vmlinux | grep -E 'NoMount Path Redirection VFS Subsystem|NoMount: ' | head -n 20 || true
+    fi
+  } | tee nomount-proof.txt
 }
 
 verify_resukisu_susfs_hook_mode() {
