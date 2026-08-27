@@ -44,11 +44,13 @@ grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
   || fail "workflow is missing the cache-key-only ccache prefix"
 
 expected_socs=(sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
-expected_devices=(negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
+expected_codenames=(negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
+expected_devices=(negroni ovaltine "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" waffle waffle waffle)
 
 for i in "${!profiles[@]}"; do
   resolve_build_profile "${profiles[$i]}"
   assert_eq "${expected_socs[$i]}" "$SOC" "${profiles[$i]} SoC"
+  assert_eq "${expected_codenames[$i]}" "$DEVICE_CODENAMES" "${profiles[$i]} codenames"
   assert_eq "${expected_devices[$i]}" "$DEVICE_NAMES" "${profiles[$i]} devices"
   [[ -n "$PROFILE_ID" && -n "$BUILD_CONFIGS" && -n "$SOURCE_SLUG" ]] \
     || fail "${profiles[$i]} did not resolve all required metadata"
@@ -82,8 +84,9 @@ infer_android_versions sixteen-qpr2
 assert_eq "16" "$SUPPORTED_ANDROID_VERSIONS" "Android 16 development detection"
 
 ANYKERNEL_FIXTURE="$(mktemp)"
+UPDATE_BINARY_FIXTURE="$(mktemp)"
 NOMOUNT_FIXTURE_DIR="$(mktemp -d)"
-trap 'rm -f "$ANYKERNEL_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
+trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
 printf '%s\n' \
   'kernel.string=placeholder' \
   'do.devicecheck=0' \
@@ -93,12 +96,22 @@ printf '%s\n' \
   'device.name4=' \
   'device.name5=' \
   'supported.versions=' > "$ANYKERNEL_FIXTURE"
-configure_anykernel_properties "$ANYKERNEL_FIXTURE" "Test Kernel" "salami aston" "16"
+configure_anykernel_properties "$ANYKERNEL_FIXTURE" "Test Kernel" "salami OP591BL1 OP594DL1 aston OP5D35L1" "16"
 grep -q '^kernel.string=Test Kernel$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel string"
 grep -q '^do.devicecheck=1$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel device check"
 grep -q '^device.name1=salami$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel salami mapping"
-grep -q '^device.name2=aston$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel aston mapping"
+grep -q '^device.name2=OP591BL1$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel stock ID mapping"
+grep -q '^device.name4=aston$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel aston mapping"
+grep -q '^device.name5=OP5D35L1$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel 12R stock ID mapping"
 grep -q '^supported.versions=16$' "$ANYKERNEL_FIXTURE" || fail "AnyKernel Android mapping"
+
+printf '%s\n' \
+  '  if [ ! "$match" ]; then' \
+  '    abort " " "Unsupported device. Aborting...";' \
+  '  fi;' > "$UPDATE_BINARY_FIXTURE"
+add_anykernel_devicecheck_diagnostics "$UPDATE_BINARY_FIXTURE"
+grep -Fq 'ro.product.device=$device' "$UPDATE_BINARY_FIXTURE" \
+  || fail "AnyKernel device diagnostics"
 
 printf '%s\n' 'menu "one"' endmenu 'menu "two"' endmenu > "$NOMOUNT_FIXTURE_DIR/Kconfig"
 insert_line_before_last_match \

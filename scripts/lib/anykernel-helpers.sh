@@ -60,3 +60,30 @@ configure_anykernel_properties() {
     grep -q "^device.name[1-5]=${device_name}$" "$file"
   done
 }
+
+add_anykernel_devicecheck_diagnostics() {
+  local file="$1"
+  local tmp_file
+  local abort_line='    abort " " "Unsupported device. Aborting...";'
+
+  grep -Fq 'Detected device IDs:' "$file" && return 0
+  tmp_file="$(mktemp)"
+  awk -v abort_line="$abort_line" '
+    $0 == abort_line {
+      print "    ui_print \"Detected device IDs:\";"
+      print "    ui_print \"  ro.product.device=$device\";"
+      print "    ui_print \"  ro.build.product=$product\";"
+      print "    ui_print \"  ro.product.vendor.device=$vendordevice\";"
+      print "    ui_print \"  ro.vendor.product.device=$vendorproduct\";"
+      inserted = 1
+    }
+    { print }
+    END { if (!inserted) exit 1 }
+  ' "$file" > "$tmp_file" || {
+    rm -f "$tmp_file"
+    echo "::error::Could not add AnyKernel device-check diagnostics to $file"
+    return 1
+  }
+  mv "$tmp_file" "$file"
+  grep -Fq 'ro.product.device=$device' "$file"
+}

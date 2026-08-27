@@ -26,6 +26,12 @@ and source independently.
 The OnePlus 10T community source is intentionally labeled `ovaltine`; it is
 not presented as a OnePlus 10 Pro source.
 
+For SM8550 packages, the device check accepts both custom-ROM codenames and
+the stock board IDs published by the LineageOS device trees: OnePlus 11 uses
+`salami`, `OP591BL1`, or `OP594DL1`; OnePlus 12R uses `aston` or `OP5D35L1`.
+The check remains enabled, and a rejected flash prints all four device values
+reported to AnyKernel so missing regional aliases can be diagnosed safely.
+
 ## Build modes
 
 `Build OnePlus Kernel` offers three modes:

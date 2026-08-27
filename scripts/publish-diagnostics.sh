@@ -38,7 +38,8 @@ append_file_block() {
   echo
   echo "- Root solution: ${KSU_TYPE}"
   echo "- Target: ${TARGET_NAME:-unknown}"
-  echo "- Device check: ${DEVICE_NAMES:-unknown}"
+  echo "- Device codenames: ${DEVICE_CODENAMES:-unknown}"
+  echo "- Accepted device IDs: ${DEVICE_NAMES:-unknown}"
   echo "- Branch: ${KERNEL_BRANCH}"
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"

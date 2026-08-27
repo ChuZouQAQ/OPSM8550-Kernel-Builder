@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${SOC:?}"
 : "${PROFILE_ID:?}"
 : "${TARGET_NAME:?}"
+: "${DEVICE_CODENAMES:?}"
 : "${DEVICE_NAMES:?}"
 : "${SOURCE_NAME:?}"
 : "${KERNEL_BRANCH:?}"
@@ -73,11 +74,13 @@ fi
 test "$(git -C AnyKernel3 rev-parse HEAD)" = "$ANYKERNEL_COMMIT"
 
 ANYKERNEL_SCRIPT="AnyKernel3/anykernel.sh"
+ANYKERNEL_UPDATE_BINARY="AnyKernel3/META-INF/com/google/android/update-binary"
 configure_anykernel_properties \
   "$ANYKERNEL_SCRIPT" \
   "OnePlus Kernel (${KSU_TYPE}) for ${TARGET_NAME}" \
   "$DEVICE_NAMES" \
   "$SUPPORTED_ANDROID_VERSIONS"
+add_anykernel_devicecheck_diagnostics "$ANYKERNEL_UPDATE_BINARY"
 
 rm -rf "$ASSET_DIR"
 mkdir -p "$ASSET_DIR"
@@ -85,7 +88,8 @@ mkdir -p "$ASSET_DIR"
 jq -n \
   --arg profile_id "$PROFILE_ID" \
   --arg target "$TARGET_NAME" \
-  --arg devices "$DEVICE_NAMES" \
+  --arg device_codenames "$DEVICE_CODENAMES" \
+  --arg accepted_device_ids "$DEVICE_NAMES" \
   --arg android_versions "$SUPPORTED_ANDROID_VERSIONS" \
   --arg soc "$SOC" \
   --arg source "$SOURCE_NAME" \
@@ -108,7 +112,8 @@ jq -n \
   '{
     profile_id: $profile_id,
     target: $target,
-    device_codenames: ($devices | split(" ")),
+    device_codenames: ($device_codenames | split(" ")),
+    accepted_device_ids: ($accepted_device_ids | split(" ")),
     supported_android_versions: $android_versions,
     soc: $soc,
     source: $source,
@@ -154,7 +159,8 @@ cat > "$ASSET_DIR/release-notes.md" <<EOF_NOTES
 ## Build profile
 
 - Target: ${TARGET_NAME} (${SOC})
-- Allowed device codenames: ${DEVICE_NAMES}
+- Device codenames: ${DEVICE_CODENAMES}
+- Accepted device IDs: ${DEVICE_NAMES}
 - Source: ${SOURCE_NAME}
 - Branch: ${KERNEL_BRANCH}
 - Kernel commit: \`${KERNEL_COMMIT}\`

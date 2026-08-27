@@ -174,6 +174,7 @@ esac
 {
   echo "PROFILE_ID=$PROFILE_ID"
   echo "TARGET_NAME=$TARGET_NAME"
+  echo "DEVICE_CODENAMES=$DEVICE_CODENAMES"
   echo "DEVICE_NAMES=$DEVICE_NAMES"
   echo "SUPPORTED_ANDROID_VERSIONS=$SUPPORTED_ANDROID_VERSIONS"
   echo "BUILD_MODE=$INPUT_BUILD_MODE"
@@ -214,6 +215,7 @@ esac
 {
   echo "profile_id=$PROFILE_ID"
   echo "target_name=$TARGET_NAME"
+  echo "device_codenames=$DEVICE_CODENAMES"
   echo "device_names=$DEVICE_NAMES"
   echo "supported_android_versions=$SUPPORTED_ANDROID_VERSIONS"
   echo "build_mode=$INPUT_BUILD_MODE"
@@ -241,7 +243,8 @@ esac
 {
   echo "### Build profile"
   echo "- Target: $TARGET_NAME ($SOC)"
-  echo "- Device check: $DEVICE_NAMES"
+  echo "- Device codenames: $DEVICE_CODENAMES"
+  echo "- Accepted device IDs: $DEVICE_NAMES"
   echo "- Source: $SOURCE_NAME"
   echo "- Branch: $KERNEL_BRANCH"
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
