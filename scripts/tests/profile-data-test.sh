@@ -46,6 +46,8 @@ grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
   || fail "workflow is missing the cache-key-only ccache prefix"
 grep -Eq '^[[:space:]]+lld \\' "$UPSTREAM_HEALTH_WORKFLOW" \
   || fail "upstream health workflow is missing the LLVM linker"
+grep -Eq '^[[:space:]]+llvm \\' "$UPSTREAM_HEALTH_WORKFLOW" \
+  || fail "upstream health workflow is missing the LLVM binutils"
 grep -Fq 'MODULES_CLONE_DIR="${UPSTREAM_SOC}-modules"' "$RESOLVER_SCRIPT" \
   || fail "community module checkout must preserve the upstream repository stem"
 

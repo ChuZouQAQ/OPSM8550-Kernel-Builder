@@ -73,6 +73,7 @@ jobs:
             libelf-dev \
             libssl-dev \
             lld \
+            llvm \
             patch
 
       - name: Apply integrations and validate config
