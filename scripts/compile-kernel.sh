@@ -165,7 +165,13 @@ CONFIG_SECONDS=$(($(date +%s) - CONFIG_STARTED_AT))
 if [[ "$BUILD_MODE" == "Patch/config validation only" ]]; then
   SMOKE_TARGETS=()
   if [[ "$KSU_TYPE" == *susfs* ]]; then
-    SMOKE_TARGETS+=(fs/susfs.o fs/namespace.o fs/proc/task_mmu.o kernel/reboot.o)
+    SMOKE_TARGETS+=(
+      fs/susfs.o
+      fs/namespace.o
+      fs/proc/task_mmu.o
+      kernel/reboot.o
+      "${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"
+    )
   fi
   if [[ "$KSU_TYPE" == *nomount* ]]; then
     SMOKE_TARGETS+=("${NOMOUNT_FS_DIR}/nomount/nomount.o")
@@ -220,7 +226,9 @@ BUILD_PHASE="post-build verification"
 if [[ "$KSU_TYPE" == *susfs* ]]; then
   echo "==== SUSFS CONFIG SNAPSHOT ===="
   grep -E '^CONFIG_KSU_SUSFS|^CONFIG_KSU_MANUAL_HOOK|^CONFIG_TMPFS_XATTR=|^CONFIG_NOMOUNT=' out/.config || true
-  verify_resukisu_susfs_hook_mode
+  if [[ "$KSU_TYPE" == ReSukiSU* ]]; then
+    verify_resukisu_susfs_hook_mode
+  fi
   verify_susfs_binary_presence
 fi
 if [[ "$KSU_TYPE" == *nomount* ]]; then

@@ -62,6 +62,7 @@ Available workflow presets:
 | `No root changes` | No root integration | Baseline |
 | `Official KernelSU` | Official KernelSU | Supported |
 | `KernelSU-Next` | KernelSU-Next | Supported |
+| `KernelSU-Next + SUSFS` | KernelSU-Next with SUSFS | Supported |
 | `KowSU` | KowSU | Supported |
 | `SukiSU Ultra + KPM (experimental)` | SukiSU Ultra with KPM | Experimental |
 | `ReSukiSU` | ReSukiSU | Supported |
@@ -79,6 +80,13 @@ the expected wiring, config, objects, or symbols are missing.
 SUSFS branches are selected from the SoC and Android/kernel branch, and known
 vendor include drift is repaired only for explicitly recognized conflicts.
 Unknown patch rejects fail closed and are included in diagnostics.
+
+The KernelSU-Next + SUSFS preset resolves `pershoot/KernelSU-Next@dev-susfs`
+to an exact commit. The regular KernelSU-Next preset remains on the official
+`KernelSU-Next/KernelSU-Next@dev` branch. The compatibility branch is required
+because the SUSFS KernelSU-side patch does not apply to the current official
+development tree; the pipeline still takes the kernel-side SUSFS files and
+patch from `simonpunk/susfs4ksu` at an exact commit.
 
 SUSFS builds require upstream v2.2.0 or newer and explicitly verify the
 `SUS_MAP` and `OPEN_REDIRECT` features in the final config. The NoMount preset
@@ -166,15 +174,17 @@ Pushes and pull requests run:
 
 - Bash syntax checks
 - ShellCheck at warning severity
-- offline tests for all ten profile mappings, root mappings, Clang selection,
+- offline tests for all ten profile mappings, root mappings (including
+  KernelSU-Next + SUSFS), Clang selection,
   KPM configuration, SUSFS selection/version floor, NoMount selection/wiring,
   Android version inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
-resolves exact commits for all ten profiles, then runs an eight-job smoke-test
-matrix: both SukiSU Ultra + KPM and ReSukiSU + SUSFS + NoMount are validated on
-representative SM7550, SM8450, SM8550, and SM8650 sources.
+resolves exact commits for all ten profiles, then runs a twelve-job smoke-test
+matrix: KernelSU-Next + SUSFS, SukiSU Ultra + KPM, and ReSukiSU + SUSFS +
+NoMount are validated on representative SM7550, SM8450, SM8550, and SM8650
+sources.
 
 ## Important limitations
 

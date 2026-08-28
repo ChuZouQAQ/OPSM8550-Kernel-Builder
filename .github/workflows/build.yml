@@ -57,6 +57,7 @@ on:
           - No root changes
           - Official KernelSU
           - KernelSU-Next
+          - KernelSU-Next + SUSFS
           - KowSU
           - SukiSU Ultra + KPM (experimental)
           - ReSukiSU

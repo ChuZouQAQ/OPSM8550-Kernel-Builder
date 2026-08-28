@@ -70,12 +70,20 @@ done
 
 resolve_root_solution "ReSukiSU + susfs"
 assert_eq "ReSukiSU-with-susfs" "$KSU_TYPE" "root mapping"
+resolve_root_solution "KernelSU-Next + SUSFS"
+assert_eq "KernelSU-Next-with-susfs" "$KSU_TYPE" "KernelSU-Next SUSFS root mapping"
 resolve_root_solution "ReSukiSU + SUSFS + NoMount (experimental)"
 assert_eq "ReSukiSU-with-susfs-nomount" "$KSU_TYPE" "NoMount root mapping"
 resolve_root_solution "SukiSU Ultra + KPM (experimental)"
 assert_eq "SukiSU-Ultra-with-KPM" "$KSU_TYPE" "KPM root mapping"
 grep -Fq -- '- ReSukiSU + SUSFS + NoMount (experimental)' "$WORKFLOW_FILE" \
   || fail "workflow is missing the NoMount root option"
+grep -Fq -- '- KernelSU-Next + SUSFS' "$WORKFLOW_FILE" \
+  || fail "workflow is missing the KernelSU-Next SUSFS root option"
+grep -Fq 'KSU_REPO="https://github.com/pershoot/KernelSU-Next.git"' "$RESOLVER_SCRIPT" \
+  || fail "KernelSU-Next SUSFS must resolve the compatible dev-susfs fork"
+grep -Fq 'KSU_REF="dev-susfs"' "$RESOLVER_SCRIPT" \
+  || fail "KernelSU-Next SUSFS must resolve the dev-susfs branch"
 grep -Fq -- '- SukiSU Ultra + KPM (experimental)' "$WORKFLOW_FILE" \
   || fail "workflow is missing the KPM root option"
 grep -Fq 'CONFIG_KPM CONFIG_KALLSYMS CONFIG_KALLSYMS_ALL' "${SCRIPT_DIR}/../lib/kernel-helpers.sh" \

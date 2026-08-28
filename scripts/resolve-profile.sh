@@ -84,6 +84,12 @@ case "$KSU_TYPE" in
     KSU_REPO="https://github.com/KernelSU-Next/KernelSU-Next.git"
     KSU_REF="dev"
     ;;
+  KernelSU-Next-with-susfs)
+    # The official dev branch does not carry the KernelSU-side SUSFS hooks.
+    # This branch tracks it and provides the matching in-tree integration.
+    KSU_REPO="https://github.com/pershoot/KernelSU-Next.git"
+    KSU_REF="dev-susfs"
+    ;;
   KowSU)
     KSU_REPO="https://github.com/KOWX712/KernelSU.git"
     KSU_REF="master"

@@ -44,6 +44,8 @@ append_file_block() {
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"
   if [[ -n "${KSU_COMMIT:-}" ]]; then
+    echo "- KernelSU repository: ${KSU_REPO:-unknown}"
+    echo "- KernelSU ref: ${KSU_REF:-unknown}"
     echo "- KernelSU commit: \`${KSU_COMMIT}\`"
   fi
   if [[ -n "${SUSFS_REF:-}" ]]; then

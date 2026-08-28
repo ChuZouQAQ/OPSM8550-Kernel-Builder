@@ -29,6 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SUPPORTED_ANDROID_VERSIONS="${SUPPORTED_ANDROID_VERSIONS:-}"
 KSU_COMMIT="${KSU_COMMIT:-}"
+KSU_REPO="${KSU_REPO:-}"
+KSU_REF="${KSU_REF:-}"
 SUSFS_REF="${SUSFS_REF:-}"
 SUSFS_COMMIT="${SUSFS_COMMIT:-}"
 SUSFS_VERSION="${SUSFS_VERSION:-}"
@@ -103,6 +105,8 @@ jq -n \
   --arg clang "$CLANG_VERSION" \
   --arg root_solution "$KSU_TYPE" \
   --argjson kpm_enabled "$KPM_ENABLED" \
+  --arg ksu_repo "$KSU_REPO" \
+  --arg ksu_ref "$KSU_REF" \
   --arg ksu_commit "$KSU_COMMIT" \
   --arg susfs_ref "$SUSFS_REF" \
   --arg susfs_commit "$SUSFS_COMMIT" \
@@ -128,6 +132,8 @@ jq -n \
     clang: $clang,
     root_solution: $root_solution,
     kpm_enabled: $kpm_enabled,
+    kernelsu_repository: $ksu_repo,
+    kernelsu_ref: $ksu_ref,
     kernelsu_commit: $ksu_commit,
     susfs_ref: $susfs_ref,
     susfs_commit: $susfs_commit,
@@ -173,6 +179,7 @@ cat > "$ASSET_DIR/release-notes.md" <<EOF_NOTES
 - Modules commit: \`${MODULES_COMMIT}\`
 - Clang: ${CLANG_VERSION}
 - Root solution: ${KSU_TYPE}
+- KernelSU source: ${KSU_REPO:-disabled} (${KSU_REF:-none}, ${KSU_COMMIT:-none})
 - KPM: ${KPM_ENABLED}
 - SUSFS: ${SUSFS_NOTE}
 - NoMount: ${NOMOUNT_NOTE}

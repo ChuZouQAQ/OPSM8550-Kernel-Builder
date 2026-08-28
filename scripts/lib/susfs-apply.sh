@@ -279,7 +279,9 @@ apply_susfs_full() {
   mkdir -p "${ksu_kernel_dir}/include/linux"
   cp ./susfs/kernel_patches/include/linux/* "${ksu_kernel_dir}/include/linux/"
   patch_kernelsu_for_susfs "${ksu_repo_dir}" "${ksu_kernel_dir}"
-  patch_resukisu_susfs_runtime_compat "${ksu_kernel_dir}"
+  if [[ "$KSU_TYPE" == ReSukiSU* ]]; then
+    patch_resukisu_susfs_runtime_compat "${ksu_kernel_dir}"
+  fi
   patch_susfs_selinux_hide_compat "${ksu_kernel_dir}"
 
   test -f include/linux/susfs_def.h || {

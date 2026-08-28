@@ -191,6 +191,7 @@ resolve_root_solution() {
     "No root changes") KSU_TYPE="None" ;;
     "Official KernelSU") KSU_TYPE="Official-KernelSU" ;;
     "KernelSU-Next") KSU_TYPE="KernelSU-Next" ;;
+    "KernelSU-Next + SUSFS") KSU_TYPE="KernelSU-Next-with-susfs" ;;
     "KowSU") KSU_TYPE="KowSU" ;;
     "SukiSU Ultra + KPM (experimental)") KSU_TYPE="SukiSU-Ultra-with-KPM" ;;
     "ReSukiSU") KSU_TYPE="ReSukiSU" ;;
