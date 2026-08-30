@@ -100,6 +100,53 @@ patch_susfs_kernelsu_layout() {
   fi
 }
 
+resolve_known_sukisu_susfs_rejects() {
+  local ksu_repo_dir="$1"
+  local ksu_dir="$2"
+  local init_file="${ksu_dir}/core/init.c"
+  local compat_patch
+  local reject
+  local reject_files=()
+
+  [[ "${KSU_TYPE:-}" == "SukiSU-Ultra-with-susfs-KPM" ]] || return 1
+
+  mapfile -t reject_files < <(find "$ksu_repo_dir" -name '*.rej' -print | sort)
+  [[ "${#reject_files[@]}" -eq 1 ]] || return 1
+
+  reject="${reject_files[0]}"
+  [[ "$(realpath --relative-to="$ksu_repo_dir" "$reject")" == "kernel/core/init.c.rej" ]] || return 1
+  grep -q 'ksu_init_symbol_resolver' "$reject" || return 1
+  grep -q 'ksu_syscall_hook_manager_init' "$reject" || return 1
+
+  test -f "$init_file" || return 1
+  grep -Fq '#include "feature/uts_spoof.h"' "$init_file" || return 1
+  grep -Fq 'if (spoof_release || spoof_version)' "$init_file" || return 1
+  grep -Fq '#include <linux/susfs.h>' "$init_file" || return 1
+  grep -Fq 'ksu_init_symbol_resolver();' "$init_file" || return 1
+  grep -Fq 'ksu_syscall_hook_manager_init();' "$init_file" || return 1
+
+  compat_patch="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../patches/sukisu-susfs-core-init-compat.patch"
+  test -f "$compat_patch" || return 1
+
+  (
+    cd "$ksu_repo_dir" || exit 1
+    patch --batch --forward -p1 < "$compat_patch"
+  ) || return 1
+
+  grep -Fq '#include "feature/uts_spoof.h"' "$init_file" || return 1
+  grep -Fq 'ksu_spoof_version(spoof_release, spoof_version);' "$init_file" || return 1
+  grep -Fq 'susfs_init();' "$init_file" || return 1
+  grep -Fq 'ksu_setuid_hook_init();' "$init_file" || return 1
+  grep -Fq 'ksu_sucompat_init();' "$init_file" || return 1
+
+  if grep -Eq 'ksu_init_symbol_resolver|ksu_syscall_hook_(init|manager_init)|ksu_lsm_hook_init' "$init_file"; then
+    return 1
+  fi
+
+  rm -f "$reject"
+  echo "[+] Resolved recognized SukiSU Ultra UTS-spoof drift in the SUSFS core init patch."
+}
+
 patch_kernelsu_for_susfs() {
   local ksu_repo_dir="$1"
   local ksu_dir="$2"
@@ -121,13 +168,23 @@ patch_kernelsu_for_susfs() {
     exit 1
   }
 
-  (
+  if ! (
     cd "$ksu_repo_dir"
-    patch -p1 < "$(basename "$patch_file")"
-  ) || {
-    echo "::error::Failed to apply KernelSU susfs patch in $ksu_repo_dir"
+    patch --batch --forward -p1 < "$(basename "$patch_file")"
+  ); then
+    echo "[!] KernelSU SUSFS patch reported conflicts, checking recognized SukiSU Ultra drift..."
+    if ! resolve_known_sukisu_susfs_rejects "$ksu_repo_dir" "$ksu_dir"; then
+      echo "::error::Failed to apply KernelSU susfs patch in $ksu_repo_dir"
+      find "$ksu_repo_dir" -name '*.rej' -print -exec sh -c 'echo "---- $1 ----"; cat "$1"' _ {} \;
+      exit 1
+    fi
+  fi
+
+  if find "$ksu_repo_dir" -name '*.rej' -print -quit | grep -q .; then
+    echo "::error::KernelSU susfs integration left unresolved reject files in $ksu_repo_dir"
+    find "$ksu_repo_dir" -name '*.rej' -print
     exit 1
-  }
+  fi
 
   grep -q 'KSU_SUSFS' "$kconfig_file" || {
     echo "::error::KernelSU susfs patch applied but KSU_SUSFS is still missing from $kconfig_file"

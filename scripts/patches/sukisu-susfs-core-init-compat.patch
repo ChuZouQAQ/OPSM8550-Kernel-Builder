@@ -1,0 +1,95 @@
+--- a/kernel/core/init.c
++++ b/kernel/core/init.c
+@@ -24 +23,0 @@
+-#include "hook/syscall_hook.h"
+@@ -28,9 +27,2 @@
+-#include "infra/symbol_resolver.h"
+-
+-#if defined(__x86_64__) && !defined(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER)
+-#include <asm/cpufeature.h>
+-#include <linux/version.h>
+-#ifndef X86_FEATURE_INDIRECT_SAFE
+-#error "FATAL: Your kernel is missing the indirect syscall bypass patches!"
+-#endif
+-#endif
++#include "hook/setuid_hook.h"
++#include "feature/sucompat.h"
+@@ -113,2 +104,0 @@
+-    ksu_init_symbol_resolver();
+-
+@@ -119 +109,3 @@
+-    ksu_syscall_hook_init();
++#ifdef CONFIG_KSU_SUSFS
++    susfs_init();
++#endif // #ifdef KSU_SUSFS
+@@ -122,4 +113,0 @@
+-    ksu_sulog_init();
+-    ksu_adb_root_init();
+-    ksu_lsm_hook_init();
+-    ksu_selinux_hide_init();
+@@ -128,8 +115,0 @@
+-    ksu_app_profile_init();
+-
+-    if (ksu_late_loaded) {
+-        pr_info("late load mode, skipping kprobe hooks\n");
+-
+-        apply_kernelsu_rules();
+-        cache_sid();
+-        setup_ksu_cred();
+@@ -137,4 +117 @@
+-        // Grant current process (ksud late-load) root
+-        // with KSU SELinux domain before enforcing SELinux, so it
+-        // can continue to access /data/app etc. after enforcement.
+-        escape_to_root_for_init();
++    ksu_sucompat_init();
+@@ -142,2 +119 @@
+-        ksu_allowlist_init();
+-        ksu_load_allow_list();
++    ksu_setuid_hook_init();
+@@ -145,5 +121 @@
+-        ksu_syscall_hook_manager_init();
+-
+-        ksu_throne_tracker_init();
+-        ksu_observer_init();
+-        ksu_file_wrapper_init();
++    ksu_sulog_init();
+@@ -151,2 +123 @@
+-        ksu_boot_completed = true;
+-        track_throne(false);
++    ksu_adb_root_init();
+@@ -154,4 +125 @@
+-        if (!getenforce()) {
+-            pr_info("Permissive SELinux, enforcing\n");
+-            setenforce(true);
+-        }
++    ksu_selinux_hide_init();
+@@ -159,2 +127 @@
+-    } else {
+-        ksu_syscall_hook_manager_init();
++    ksu_allowlist_init();
+@@ -162 +129 @@
+-        ksu_allowlist_init();
++    ksu_throne_tracker_init();
+@@ -164 +131 @@
+-        ksu_throne_tracker_init();
++    ksu_ksud_init();
+@@ -166 +133 @@
+-        ksu_ksud_init();
++    ksu_file_wrapper_init();
+@@ -168,8 +134,0 @@
+-        ksu_file_wrapper_init();
+-    }
+-
+-#ifdef MODULE
+-#ifndef CONFIG_KSU_DEBUG
+-    kobject_del(&THIS_MODULE->mkobj.kobj);
+-#endif
+-#endif
+@@ -181,3 +139,0 @@
+-    // Phase 1: Stop all hooks first to prevent new callbacks
+-    ksu_syscall_hook_manager_exit();
+-
+@@ -186,2 +142 @@
+-    if (!ksu_late_loaded)
+-        ksu_ksud_exit();
++    ksu_ksud_exit();

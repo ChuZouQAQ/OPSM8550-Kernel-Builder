@@ -37,7 +37,7 @@ jobs:
         integration:
           - KernelSU-Next + SUSFS
           - ReSukiSU + SUSFS + NoMount (experimental)
-          - SukiSU Ultra + KPM (experimental)
+          - SukiSU Ultra + SUSFS + KPM (experimental)
         profile:
           - SM7550 | OnePlus Nord CE4 | development
           - SM8450 | OnePlus 10T / Ace Pro | LineageOS community

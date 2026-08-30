@@ -33,6 +33,9 @@ WORKFLOW_FILE="${SCRIPT_DIR}/../../.github/workflows/build.yml"
 UPSTREAM_HEALTH_WORKFLOW="${SCRIPT_DIR}/../../.github/workflows/upstream-health.yml"
 COMPILE_SCRIPT="${SCRIPT_DIR}/../compile-kernel.sh"
 RESOLVER_SCRIPT="${SCRIPT_DIR}/../resolve-profile.sh"
+KSU_SETUP_SCRIPT="${SCRIPT_DIR}/../lib/ksu-setup.sh"
+SUSFS_APPLY_SCRIPT="${SCRIPT_DIR}/../lib/susfs-apply.sh"
+SUKISU_SUSFS_COMPAT_PATCH="${SCRIPT_DIR}/../patches/sukisu-susfs-core-init-compat.patch"
 for profile in "${profiles[@]}"; do
   grep -Fq -- "- ${profile}" "$WORKFLOW_FILE" \
     || fail "workflow is missing profile option: $profile"
@@ -76,6 +79,8 @@ resolve_root_solution "ReSukiSU + SUSFS + NoMount (experimental)"
 assert_eq "ReSukiSU-with-susfs-nomount" "$KSU_TYPE" "NoMount root mapping"
 resolve_root_solution "SukiSU Ultra + KPM (experimental)"
 assert_eq "SukiSU-Ultra-with-KPM" "$KSU_TYPE" "KPM root mapping"
+resolve_root_solution "SukiSU Ultra + SUSFS + KPM (experimental)"
+assert_eq "SukiSU-Ultra-with-susfs-KPM" "$KSU_TYPE" "SukiSU SUSFS/KPM root mapping"
 grep -Fq -- '- ReSukiSU + SUSFS + NoMount (experimental)' "$WORKFLOW_FILE" \
   || fail "workflow is missing the NoMount root option"
 grep -Fq -- '- KernelSU-Next + SUSFS' "$WORKFLOW_FILE" \
@@ -86,6 +91,18 @@ grep -Fq 'KSU_REF="dev-susfs"' "$RESOLVER_SCRIPT" \
   || fail "KernelSU-Next SUSFS must resolve the dev-susfs branch"
 grep -Fq -- '- SukiSU Ultra + KPM (experimental)' "$WORKFLOW_FILE" \
   || fail "workflow is missing the KPM root option"
+grep -Fq -- '- SukiSU Ultra + SUSFS + KPM (experimental)' "$WORKFLOW_FILE" \
+  || fail "workflow is missing the combined SukiSU SUSFS/KPM root option"
+grep -Fq -- '- SukiSU Ultra + SUSFS + KPM (experimental)' "$UPSTREAM_HEALTH_WORKFLOW" \
+  || fail "upstream health is missing the combined SukiSU SUSFS/KPM preset"
+grep -Fq 'SukiSU-Ultra-with-KPM|SukiSU-Ultra-with-susfs-KPM)' "$RESOLVER_SCRIPT" \
+  || fail "resolver does not route the combined preset to SukiSU Ultra"
+grep -Fq '"SukiSU-Ultra-with-KPM"|"SukiSU-Ultra-with-susfs-KPM")' "$KSU_SETUP_SCRIPT" \
+  || fail "KernelSU setup does not install SukiSU Ultra for the combined preset"
+grep -Fq 'resolve_known_sukisu_susfs_rejects' "$SUSFS_APPLY_SCRIPT" \
+  || fail "SUSFS integration is missing the guarded SukiSU drift resolver"
+test -f "$SUKISU_SUSFS_COMPAT_PATCH" \
+  || fail "SUSFS integration is missing the guarded SukiSU compatibility patch"
 grep -Fq 'CONFIG_KPM CONFIG_KALLSYMS CONFIG_KALLSYMS_ALL' "${SCRIPT_DIR}/../lib/kernel-helpers.sh" \
   || fail "KPM preset is missing required config values"
 
@@ -117,11 +134,14 @@ KPM_CONFIG_FIXTURE="$(mktemp)"
 NOMOUNT_FIXTURE_DIR="$(mktemp -d)"
 trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE" "$KPM_CONFIG_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
 
-KSU_TYPE="SukiSU-Ultra-with-KPM"
+KSU_TYPE="SukiSU-Ultra-with-susfs-KPM"
 apply_variant_configs "$KPM_CONFIG_FIXTURE"
 grep -q '^CONFIG_KPM=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM config"
 grep -q '^CONFIG_KALLSYMS=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM kallsyms config"
 grep -q '^CONFIG_KALLSYMS_ALL=y$' "$KPM_CONFIG_FIXTURE" || fail "KPM kallsyms-all config"
+grep -q '^CONFIG_KSU_SUSFS=y$' "$KPM_CONFIG_FIXTURE" || fail "combined preset SUSFS config"
+grep -q '^CONFIG_KSU_SUSFS_SUS_MAP=y$' "$KPM_CONFIG_FIXTURE" || fail "combined preset SUSFS map config"
+grep -q '^CONFIG_KSU_SUSFS_OPEN_REDIRECT=y$' "$KPM_CONFIG_FIXTURE" || fail "combined preset SUSFS redirect config"
 
 printf '%s\n' \
   'kernel.string=placeholder' \

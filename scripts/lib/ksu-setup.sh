@@ -95,7 +95,7 @@ install_ksu_variant() {
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for KernelSU-Next with SUSFS}"
       setup_kernelsu_repo "pershoot" "KernelSU-Next" "$KSU_COMMIT"
       ;;
-    "SukiSU-Ultra-with-KPM")
+    "SukiSU-Ultra-with-KPM"|"SukiSU-Ultra-with-susfs-KPM")
       : "${KSU_COMMIT:?KSU_COMMIT must be resolved for SukiSU Ultra}"
       setup_kernelsu_repo "SukiSU-Ultra" "SukiSU-Ultra" "$KSU_COMMIT"
       ;;

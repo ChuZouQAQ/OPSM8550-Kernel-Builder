@@ -94,7 +94,7 @@ case "$KSU_TYPE" in
     KSU_REPO="https://github.com/KOWX712/KernelSU.git"
     KSU_REF="master"
     ;;
-  SukiSU-Ultra-with-KPM)
+  SukiSU-Ultra-with-KPM|SukiSU-Ultra-with-susfs-KPM)
     KSU_REPO="https://github.com/SukiSU-Ultra/SukiSU-Ultra.git"
     KSU_REF="main"
     ;;

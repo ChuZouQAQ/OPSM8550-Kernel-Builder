@@ -65,21 +65,25 @@ Available workflow presets:
 | `KernelSU-Next + SUSFS` | KernelSU-Next with SUSFS | Supported |
 | `KowSU` | KowSU | Supported |
 | `SukiSU Ultra + KPM (experimental)` | SukiSU Ultra with KPM | Experimental |
+| `SukiSU Ultra + SUSFS + KPM (experimental)` | SukiSU Ultra with SUSFS and KPM | Experimental |
 | `ReSukiSU` | ReSukiSU | Supported |
 | `ReSukiSU + susfs` | ReSukiSU with SUSFS | Supported |
 | `ReSukiSU + SUSFS + NoMount (experimental)` | ReSukiSU with SUSFS and NoMount | Experimental |
 
-KPM is available only through the dedicated SukiSU Ultra preset because current
+KPM is available only through the dedicated SukiSU Ultra presets because current
 ReSukiSU no longer supports it. The pipeline resolves SukiSU Ultra to an exact
-commit, checks its KPM sources and Kbuild wiring, and enables `CONFIG_KPM`,
-`CONFIG_KALLSYMS`, and `CONFIG_KALLSYMS_ALL`. Validation mode compiles the three
-KPM objects and checks their exported signatures; a full build repeats the
-signature check against the final kernel artifacts. Both paths fail closed when
-the expected wiring, config, objects, or symbols are missing.
+`main` commit, checks its KPM sources and Kbuild wiring, and enables `CONFIG_KPM`,
+`CONFIG_KALLSYMS`, and `CONFIG_KALLSYMS_ALL`. The combined preset additionally
+resolves and applies the matching SUSFS branch at an exact commit. Validation
+mode compiles the KPM and SUSFS integration objects and checks their exported
+signatures; a full build repeats the signature checks against the final kernel
+artifacts. Both paths fail closed when expected wiring, config, objects, or
+symbols are missing.
 
-SUSFS branches are selected from the SoC and Android/kernel branch, and known
-vendor include drift is repaired only for explicitly recognized conflicts.
-Unknown patch rejects fail closed and are included in diagnostics.
+SUSFS branches are selected from the SoC and Android/kernel branch. Known vendor
+include drift and the current SukiSU Ultra UTS-spoof init drift are repaired only
+for explicitly recognized conflicts. Unknown patch rejects fail closed and are
+included in diagnostics.
 
 The KernelSU-Next + SUSFS preset resolves `pershoot/KernelSU-Next@dev-susfs`
 to an exact commit. The regular KernelSU-Next preset remains on the official
@@ -175,16 +179,16 @@ Pushes and pull requests run:
 - Bash syntax checks
 - ShellCheck at warning severity
 - offline tests for all ten profile mappings, root mappings (including
-  KernelSU-Next + SUSFS), Clang selection,
+  KernelSU-Next + SUSFS and SukiSU Ultra + SUSFS + KPM), Clang selection,
   KPM configuration, SUSFS selection/version floor, NoMount selection/wiring,
   Android version inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
 resolves exact commits for all ten profiles, then runs a twelve-job smoke-test
-matrix: KernelSU-Next + SUSFS, SukiSU Ultra + KPM, and ReSukiSU + SUSFS +
-NoMount are validated on representative SM7550, SM8450, SM8550, and SM8650
-sources.
+matrix: KernelSU-Next + SUSFS, SukiSU Ultra + SUSFS + KPM, and ReSukiSU +
+SUSFS + NoMount are validated on representative SM7550, SM8450, SM8550, and
+SM8650 sources.
 
 ## Important limitations
 
@@ -197,8 +201,8 @@ sources.
   module or replace device-specific firmware.
 - NoMount modifies VFS behavior and upstream labels it experimental. Test its
   dedicated preset on a recoverable device before distributing it.
-- KPM dynamically patches kernel behavior at runtime. Treat its dedicated
-  SukiSU Ultra preset as experimental and test it only on a recoverable device.
+- KPM dynamically patches kernel behavior at runtime. Treat both SukiSU Ultra
+  presets as experimental and test them only on a recoverable device.
 - Runtime performance tuning is intentionally left at upstream/vendor config
   defaults. Options such as KASAN, LTO mode, scheduler changes, and compiler
   optimization flags require device-specific boot, stability, power, and

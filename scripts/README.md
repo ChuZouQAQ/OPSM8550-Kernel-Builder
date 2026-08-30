@@ -27,6 +27,8 @@ Shell implementation used by the GitHub Actions workflows.
 - `lib/susfs-apply.sh` applies SUSFS at an exact commit, repairs explicitly
   recognized upstream drift, enforces the supported version floor, and rejects
   unknown conflicts.
+- `patches/sukisu-susfs-core-init-compat.patch` is the guarded compatibility
+  delta for the recognized SukiSU Ultra UTS-spoof init drift.
 - `lib/nomount-setup.sh` integrates an exact NoMount commit into the kernel fs
   Kconfig/Makefile only for the explicit experimental preset.
 - `lib/verify.sh` performs source, config, hook-mode, and binary verification,
@@ -40,9 +42,10 @@ representative root, Clang, KPM, SUSFS, NoMount, and Android version decisions.
 
 The push/PR validation workflow runs Bash syntax checks, ShellCheck, these
 offline tests, and actionlint. The scheduled upstream-health workflow resolves
-every profile and runs a matrix covering both KPM and SUSFS/NoMount validation
-on representative SM7550, SM8450, SM8550, and SM8650 sources, including
-targeted integration object compilation.
+every profile and runs a matrix covering KernelSU-Next + SUSFS, the combined
+SukiSU Ultra + SUSFS + KPM preset, and ReSukiSU + SUSFS + NoMount on
+representative SM7550, SM8450, SM8550, and SM8650 sources, including targeted
+integration object compilation.
 
 ## Conventions
 
