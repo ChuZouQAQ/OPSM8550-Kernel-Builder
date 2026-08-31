@@ -29,8 +29,8 @@ PROFILE_COUNT="${#PROFILES[@]}"
 {
   echo "### Upstream resolution"
   echo
-  echo "| Profile | Branch | Kernel | Modules | SUSFS | NoMount | Result |"
-  echo "| --- | --- | --- | --- | --- | --- | --- |"
+  echo "| Profile | Kernel branch | Modules branch | Kernel | Modules | SUSFS | NoMount | Result |"
+  echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
 } >> "$GITHUB_STEP_SUMMARY"
 
 for profile in "${PROFILES[@]}"; do
@@ -55,15 +55,16 @@ for profile in "${PROFILES[@]}"; do
      bash "${SCRIPT_DIR}/resolve-profile.sh"; then
     profile_id="$(awk -F= '$1 == "profile_id" {print substr($0, index($0, "=") + 1)}' "$output_file")"
     branch="$(awk -F= '$1 == "kernel_branch" {print substr($0, index($0, "=") + 1)}' "$output_file")"
+    modules_branch="$(awk -F= '$1 == "modules_branch" {print substr($0, index($0, "=") + 1)}' "$output_file")"
     kernel_commit="$(awk -F= '$1 == "kernel_commit" {print substr($0, index($0, "=") + 1)}' "$output_file")"
     modules_commit="$(awk -F= '$1 == "modules_commit" {print substr($0, index($0, "=") + 1)}' "$output_file")"
     susfs_commit="$(awk -F= '$1 == "susfs_commit" {print substr($0, index($0, "=") + 1)}' "$output_file")"
     nomount_commit="$(awk -F= '$1 == "nomount_commit" {print substr($0, index($0, "=") + 1)}' "$output_file")"
-    echo "| ${profile_id} | ${branch} | \`${kernel_commit:0:12}\` | \`${modules_commit:0:12}\` | \`${susfs_commit:0:12}\` | \`${nomount_commit:0:12}\` | pass |" \
+    echo "| ${profile_id} | ${branch} | ${modules_branch} | \`${kernel_commit:0:12}\` | \`${modules_commit:0:12}\` | \`${susfs_commit:0:12}\` | \`${nomount_commit:0:12}\` | pass |" \
       >> "$GITHUB_STEP_SUMMARY"
   else
     safe_profile="${profile//|/\\|}"
-    echo "| ${safe_profile} | - | - | - | - | - | **failed** |" >> "$GITHUB_STEP_SUMMARY"
+    echo "| ${safe_profile} | - | - | - | - | - | - | **failed** |" >> "$GITHUB_STEP_SUMMARY"
     STATUS=1
   fi
 done

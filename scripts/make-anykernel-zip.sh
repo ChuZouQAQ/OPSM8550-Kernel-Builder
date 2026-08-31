@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${DEVICE_NAMES:?}"
 : "${SOURCE_NAME:?}"
 : "${KERNEL_BRANCH:?}"
+: "${MODULES_BRANCH:?}"
 : "${KERNEL_COMMIT:?}"
 : "${MODULES_COMMIT:?}"
 : "${CLANG_VERSION:?}"
@@ -100,6 +101,7 @@ jq -n \
   --arg soc "$SOC" \
   --arg source "$SOURCE_NAME" \
   --arg branch "$KERNEL_BRANCH" \
+  --arg modules_branch "$MODULES_BRANCH" \
   --arg kernel_commit "$KERNEL_COMMIT" \
   --arg modules_commit "$MODULES_COMMIT" \
   --arg clang "$CLANG_VERSION" \
@@ -127,6 +129,7 @@ jq -n \
     soc: $soc,
     source: $source,
     branch: $branch,
+    modules_branch: $modules_branch,
     kernel_commit: $kernel_commit,
     modules_commit: $modules_commit,
     clang: $clang,
@@ -176,6 +179,7 @@ cat > "$ASSET_DIR/release-notes.md" <<EOF_NOTES
 - Source: ${SOURCE_NAME}
 - Branch: ${KERNEL_BRANCH}
 - Kernel commit: \`${KERNEL_COMMIT}\`
+- Modules branch: ${MODULES_BRANCH}
 - Modules commit: \`${MODULES_COMMIT}\`
 - Clang: ${CLANG_VERSION}
 - Root solution: ${KSU_TYPE}

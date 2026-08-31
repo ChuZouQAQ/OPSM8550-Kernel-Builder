@@ -177,6 +177,9 @@ if [[ "$BUILD_MODE" == "Patch/config validation only" ]]; then
     SMOKE_TARGETS+=("${NOMOUNT_FS_DIR}/nomount/nomount.o")
   fi
   if [[ "$KSU_TYPE" == *KPM* ]]; then
+    if [[ "$KSU_TYPE" != *susfs* ]]; then
+      SMOKE_TARGETS+=("${KSU_DRIVER_DIR}/kernelsu/kernelsu.o")
+    fi
     SMOKE_TARGETS+=(
       "${KSU_DRIVER_DIR}/kernelsu/kpm/compact.o"
       "${KSU_DRIVER_DIR}/kernelsu/kpm/kpm.o"

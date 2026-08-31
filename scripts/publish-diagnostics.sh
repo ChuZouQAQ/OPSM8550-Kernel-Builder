@@ -6,6 +6,7 @@
 #   SOC
 #   KSU_TYPE
 #   KERNEL_BRANCH
+#   MODULES_BRANCH
 #   KERNEL_COMMIT
 #   MODULES_COMMIT
 #   GITHUB_STEP_SUMMARY
@@ -18,6 +19,7 @@ set -euo pipefail
 : "${SOC:?}"
 : "${KSU_TYPE:?}"
 : "${KERNEL_BRANCH:?}"
+: "${MODULES_BRANCH:?}"
 : "${GITHUB_STEP_SUMMARY:?}"
 
 append_file_block() {
@@ -42,6 +44,7 @@ append_file_block() {
   echo "- Accepted device IDs: ${DEVICE_NAMES:-unknown}"
   echo "- Branch: ${KERNEL_BRANCH}"
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
+  echo "- Modules branch: ${MODULES_BRANCH}"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"
   if [[ -n "${KSU_COMMIT:-}" ]]; then
     echo "- KernelSU repository: ${KSU_REPO:-unknown}"

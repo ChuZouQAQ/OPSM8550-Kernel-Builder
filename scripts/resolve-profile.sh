@@ -33,18 +33,20 @@ case "$INPUT_BUILD_MODE" in
 esac
 
 if [[ "$SOURCE_LAYOUT" == "oneplus-official" ]]; then
-  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
-  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${UPSTREAM_SOC}.git"
+  DEFAULT_KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
+  DEFAULT_MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_modules_and_devicetree_oneplus_${UPSTREAM_SOC}.git"
   KERNEL_CLONE_DIR="${SOC}-kernel"
   MODULES_CLONE_DIR="${SOC}-modules"
 else
-  KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
-  MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}-modules.git"
+  DEFAULT_KERNEL_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}.git"
+  DEFAULT_MODULES_REPO="https://github.com/${KERNEL_SOURCE}/android_kernel_oneplus_${UPSTREAM_SOC}-modules.git"
   KERNEL_CLONE_DIR="${SOC}"
   # Vendor kernel symlinks point to the upstream repository stem, which can
   # intentionally differ from the marketed SoC (Nord CE4: sm7550 -> sm8550).
   MODULES_CLONE_DIR="${UPSTREAM_SOC}-modules"
 fi
+KERNEL_REPO="${KERNEL_REPO_OVERRIDE:-$DEFAULT_KERNEL_REPO}"
+MODULES_REPO="${MODULES_REPO_OVERRIDE:-$DEFAULT_MODULES_REPO}"
 
 if [[ "$INPUT_BRANCH_MODE" == "Use the recommended branch automatically" ]]; then
   KERNEL_BRANCH="$(git_ls_remote_retry --symref "$KERNEL_REPO" HEAD \
@@ -64,6 +66,8 @@ else
     exit 1
   fi
 fi
+
+MODULES_BRANCH="${MODULES_BRANCH_OVERRIDE:-$KERNEL_BRANCH}"
 
 resolve_clang_version "$INPUT_CLANG_CHOICE" "$KERNEL_BRANCH"
 infer_android_versions "$KERNEL_BRANCH"
@@ -149,10 +153,10 @@ if [[ ! "$KERNEL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
   exit 1
 fi
 
-MODULES_COMMIT="$(git_ls_remote_retry --exit-code --heads "$MODULES_REPO" "$KERNEL_BRANCH" \
+MODULES_COMMIT="$(git_ls_remote_retry --exit-code --heads "$MODULES_REPO" "$MODULES_BRANCH" \
   | awk 'NR == 1 {print $1}')"
 if [[ ! "$MODULES_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "::error::Branch '$KERNEL_BRANCH' was not found in $MODULES_REPO"
+  echo "::error::Branch '$MODULES_BRANCH' was not found in $MODULES_REPO"
   echo "::error::The matching modules repository is required for config and Kconfig resolution."
   exit 1
 fi
@@ -173,6 +177,10 @@ case "$KERNEL_SOURCE" in
   LineageOS|lineage-ovaltine-dev)
     [[ "$KERNEL_BRANCH" =~ ^lineage- ]] \
       || echo "::warning::Lineage-style source usually uses lineage-* branches; selected '$KERNEL_BRANCH'."
+    ;;
+  LunarisOS)
+    [[ "$KERNEL_BRANCH" =~ ^lineage- ]] \
+      || echo "::warning::LunarisOS OnePlus 11 source usually uses a lineage-* kernel branch; selected '$KERNEL_BRANCH'."
     ;;
   OnePlus12R-development)
     [[ "$KERNEL_BRANCH" == lineage-* || "$KERNEL_BRANCH" == sixteen* ]] \
@@ -210,6 +218,7 @@ esac
   echo "OFFICIAL_BUILD_TARGET=$OFFICIAL_BUILD_TARGET"
   echo "OFFICIAL_GKI_FRAGMENT=$OFFICIAL_GKI_FRAGMENT"
   echo "KERNEL_BRANCH=$KERNEL_BRANCH"
+  echo "MODULES_BRANCH=$MODULES_BRANCH"
   echo "KERNEL_COMMIT=$KERNEL_COMMIT"
   echo "MODULES_COMMIT=$MODULES_COMMIT"
   echo "CLANG_VERSION=$CLANG_VERSION"
@@ -245,6 +254,7 @@ esac
   echo "source_slug=$SOURCE_SLUG"
   echo "source_layout=$SOURCE_LAYOUT"
   echo "kernel_branch=$KERNEL_BRANCH"
+  echo "modules_branch=$MODULES_BRANCH"
   echo "kernel_commit=$KERNEL_COMMIT"
   echo "modules_commit=$MODULES_COMMIT"
   echo "clang_version=$CLANG_VERSION"
@@ -266,6 +276,7 @@ esac
   echo "- Source: $SOURCE_NAME"
   echo "- Branch: $KERNEL_BRANCH"
   echo "- Kernel commit: \`${KERNEL_COMMIT}\`"
+  echo "- Modules branch: $MODULES_BRANCH"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"
   echo "- Clang: $CLANG_VERSION"
   echo "- Root solution: $KSU_TYPE"

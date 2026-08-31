@@ -12,6 +12,7 @@ list_build_profiles() {
     "SM8450 | OnePlus 10 Pro | OnePlus official" \
     "SM8450 | OnePlus 10T / Ace Pro | LineageOS community" \
     "SM8550 | OnePlus 11 | OnePlus official" \
+    "SM8550 | OnePlus 11 | LunarisOS" \
     "SM8550 | OnePlus 11 / 12R | LineageOS (recommended)" \
     "SM8550 | OnePlus 11 / 12R | crDroid" \
     "SM8550 | OnePlus 12R | development" \
@@ -22,6 +23,13 @@ list_build_profiles() {
 
 resolve_build_profile() {
   local profile="$1"
+
+  # Most profiles use the conventional android_kernel_* repository names and
+  # the same branch for the kernel and modules. Source-specific profiles can
+  # override those defaults without complicating the common resolver path.
+  KERNEL_REPO_OVERRIDE=""
+  MODULES_REPO_OVERRIDE=""
+  MODULES_BRANCH_OVERRIDE=""
 
   case "$profile" in
     "SM7550 | OnePlus Nord CE4 | development")
@@ -59,6 +67,18 @@ resolve_build_profile() {
       DEVICE_NAMES="salami OP591BL1 OP594DL1"
       KERNEL_SOURCE="OnePlusOSS"
       SOURCE_LAYOUT="oneplus-official"
+      ;;
+    "SM8550 | OnePlus 11 | LunarisOS")
+      PROFILE_ID="sm8550-oneplus11-lunarisos"
+      SOC="sm8550"
+      TARGET_NAME="OnePlus 11"
+      DEVICE_CODENAMES="salami"
+      DEVICE_NAMES="salami OP591BL1 OP594DL1"
+      KERNEL_SOURCE="LunarisOS"
+      SOURCE_LAYOUT="community-flat"
+      KERNEL_REPO_OVERRIDE="https://github.com/osm1019/kernel_oneplus_sm8550.git"
+      MODULES_REPO_OVERRIDE="https://github.com/osm1019/android_kernel_oneplus_sm8550-modules.git"
+      MODULES_BRANCH_OVERRIDE="los"
       ;;
     "SM8550 | OnePlus 11 / 12R | LineageOS (recommended)")
       PROFILE_ID="sm8550-oneplus11-12r-lineage"
@@ -166,6 +186,10 @@ resolve_build_profile() {
     LineageOS)
       SOURCE_NAME="LineageOS"
       SOURCE_SLUG="lineageos"
+      ;;
+    LunarisOS)
+      SOURCE_NAME="LunarisOS (OnePlus 11)"
+      SOURCE_SLUG="lunarisos"
       ;;
     lineage-ovaltine-dev)
       SOURCE_NAME="LineageOS community (ovaltine)"

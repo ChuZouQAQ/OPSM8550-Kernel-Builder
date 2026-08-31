@@ -27,7 +27,7 @@ assert_eq() {
 
 profiles=()
 mapfile -t profiles < <(list_build_profiles)
-assert_eq "10" "${#profiles[@]}" "profile count"
+assert_eq "11" "${#profiles[@]}" "profile count"
 
 WORKFLOW_FILE="${SCRIPT_DIR}/../../.github/workflows/build.yml"
 UPSTREAM_HEALTH_WORKFLOW="${SCRIPT_DIR}/../../.github/workflows/upstream-health.yml"
@@ -55,11 +55,13 @@ grep -Eq '^[[:space:]]+llvm \\' "$UPSTREAM_HEALTH_WORKFLOW" \
   || fail "upstream health workflow is missing the LLVM binutils"
 grep -Fq 'MODULES_CLONE_DIR="${UPSTREAM_SOC}-modules"' "$RESOLVER_SCRIPT" \
   || fail "community module checkout must preserve the upstream repository stem"
+grep -Fq 'clone_repo "$MODULES_REPO" "$MODULES_BRANCH"' "${SCRIPT_DIR}/../clone-sources.sh" \
+  || fail "modules checkout must use its independently resolved branch"
 
-expected_socs=(sm7550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
-expected_upstream_socs=(sm8550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
-expected_codenames=(benz negroni ovaltine salami "salami aston" "salami aston" aston waffle waffle waffle)
-expected_devices=("benz OP5D3FL1 CPH2613" "negroni OP516EL1 OP516FL1" "ovaltine OP5551L1 OP5552L1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1")
+expected_socs=(sm7550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
+expected_upstream_socs=(sm8550 sm8450 sm8450 sm8550 sm8550 sm8550 sm8550 sm8550 sm8650 sm8650 sm8650)
+expected_codenames=(benz negroni ovaltine salami salami "salami aston" "salami aston" aston waffle waffle waffle)
+expected_devices=("benz OP5D3FL1 CPH2613" "negroni OP516EL1 OP516FL1" "ovaltine OP5551L1 OP5552L1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "salami OP591BL1 OP594DL1 aston OP5D35L1" "aston OP5D35L1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1" "waffle OP5929L1 OP595DL1")
 
 for i in "${!profiles[@]}"; do
   resolve_build_profile "${profiles[$i]}"
@@ -70,6 +72,12 @@ for i in "${!profiles[@]}"; do
   [[ -n "$PROFILE_ID" && -n "$BUILD_CONFIGS" && -n "$SOURCE_SLUG" ]] \
     || fail "${profiles[$i]} did not resolve all required metadata"
 done
+
+resolve_build_profile "SM8550 | OnePlus 11 | LunarisOS"
+assert_eq "https://github.com/osm1019/kernel_oneplus_sm8550.git" "$KERNEL_REPO_OVERRIDE" "LunarisOS kernel repository"
+assert_eq "https://github.com/osm1019/android_kernel_oneplus_sm8550-modules.git" "$MODULES_REPO_OVERRIDE" "LunarisOS modules repository"
+assert_eq "los" "$MODULES_BRANCH_OVERRIDE" "LunarisOS modules branch"
+assert_eq "lunarisos" "$SOURCE_SLUG" "LunarisOS source slug"
 
 resolve_root_solution "ReSukiSU + susfs"
 assert_eq "ReSukiSU-with-susfs" "$KSU_TYPE" "root mapping"
@@ -103,6 +111,16 @@ grep -Fq 'resolve_known_sukisu_susfs_rejects' "$SUSFS_APPLY_SCRIPT" \
   || fail "SUSFS integration is missing the guarded SukiSU drift resolver"
 test -f "$SUKISU_SUSFS_COMPAT_PATCH" \
   || fail "SUSFS integration is missing the guarded SukiSU compatibility patch"
+grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "$SUKISU_SUSFS_COMPAT_PATCH" \
+  || fail "SukiSU SUSFS/KPM compatibility patch does not restore the symbol resolver object"
+grep -Fq 'ksu_init_symbol_resolver();' "$SUKISU_SUSFS_COMPAT_PATCH" \
+  && fail "SukiSU SUSFS/KPM compatibility patch must preserve, not duplicate, resolver initialization"
+grep -Fq 'SukiSU KPM symbol resolver is not linked into kernelsu.o.' "${SCRIPT_DIR}/../lib/verify.sh" \
+  || fail "KPM source verification does not check symbol resolver linkage"
+grep -Fq '"${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"' "$COMPILE_SCRIPT" \
+  || fail "KPM smoke compilation does not build the composite KernelSU object"
+grep -Fq 'kernelsu.o does not define find_kernel_symbol_exact' "${SCRIPT_DIR}/../lib/verify.sh" \
+  || fail "KPM binary verification does not require a defined symbol resolver"
 grep -Fq 'CONFIG_KPM CONFIG_KALLSYMS CONFIG_KALLSYMS_ALL' "${SCRIPT_DIR}/../lib/kernel-helpers.sh" \
   || fail "KPM preset is missing required config values"
 

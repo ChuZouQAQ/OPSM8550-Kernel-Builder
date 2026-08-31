@@ -104,6 +104,8 @@ resolve_known_sukisu_susfs_rejects() {
   local ksu_repo_dir="$1"
   local ksu_dir="$2"
   local init_file="${ksu_dir}/core/init.c"
+  local kbuild_file="${ksu_dir}/Kbuild"
+  local symbol_resolver_file="${ksu_dir}/infra/symbol_resolver.c"
   local compat_patch
   local reject
   local reject_files=()
@@ -125,6 +127,14 @@ resolve_known_sukisu_susfs_rejects() {
   grep -Fq 'ksu_init_symbol_resolver();' "$init_file" || return 1
   grep -Fq 'ksu_syscall_hook_manager_init();' "$init_file" || return 1
 
+  test -f "$kbuild_file" || return 1
+  test -f "$symbol_resolver_file" || return 1
+  grep -Fq 'unsigned long __nocfi find_kernel_symbol_exact' "$symbol_resolver_file" || return 1
+  grep -Fq 'obj-$(CONFIG_KPM) += kpm/compact.o' "$kbuild_file" || return 1
+  if grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "$kbuild_file"; then
+    return 1
+  fi
+
   compat_patch="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../patches/sukisu-susfs-core-init-compat.patch"
   test -f "$compat_patch" || return 1
 
@@ -138,13 +148,16 @@ resolve_known_sukisu_susfs_rejects() {
   grep -Fq 'susfs_init();' "$init_file" || return 1
   grep -Fq 'ksu_setuid_hook_init();' "$init_file" || return 1
   grep -Fq 'ksu_sucompat_init();' "$init_file" || return 1
+  grep -Fq '#include "infra/symbol_resolver.h"' "$init_file" || return 1
+  grep -Fq 'ksu_init_symbol_resolver();' "$init_file" || return 1
+  grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "$kbuild_file" || return 1
 
-  if grep -Eq 'ksu_init_symbol_resolver|ksu_syscall_hook_(init|manager_init)|ksu_lsm_hook_init' "$init_file"; then
+  if grep -Eq 'ksu_syscall_hook_(init|manager_init)|ksu_lsm_hook_init' "$init_file"; then
     return 1
   fi
 
   rm -f "$reject"
-  echo "[+] Resolved recognized SukiSU Ultra UTS-spoof drift in the SUSFS core init patch."
+  echo "[+] Resolved recognized SukiSU Ultra UTS-spoof/KPM resolver drift in the SUSFS patch."
 }
 
 patch_kernelsu_for_susfs() {

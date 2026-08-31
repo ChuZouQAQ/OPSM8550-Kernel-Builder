@@ -1,9 +1,17 @@
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -12,3 +12,4 @@
+ kernelsu-objs += infra/su_mount_ns.o
+-
++kernelsu-objs += infra/symbol_resolver.o
++
+ ifneq ($(CONFIG_KSU_DISABLE_MANAGER),y)
+
 --- a/kernel/core/init.c
 +++ b/kernel/core/init.c
 @@ -24 +23,0 @@
 -#include "hook/syscall_hook.h"
-@@ -28,9 +27,2 @@
--#include "infra/symbol_resolver.h"
+@@ -29,8 +28,2 @@
 -
 -#if defined(__x86_64__) && !defined(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER)
 -#include <asm/cpufeature.h>
@@ -14,9 +22,6 @@
 -#endif
 +#include "hook/setuid_hook.h"
 +#include "feature/sucompat.h"
-@@ -113,2 +104,0 @@
--    ksu_init_symbol_resolver();
--
 @@ -119 +109,3 @@
 -    ksu_syscall_hook_init();
 +#ifdef CONFIG_KSU_SUSFS

@@ -33,15 +33,25 @@ verify_kpm_source_integration() {
     echo "::error::SukiSU KPM loader does not expose the expected manager handler."
     exit 1
   }
+  grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "${ksu_kernel_dir}/Kbuild" || {
+    echo "::error::SukiSU KPM symbol resolver is not linked into kernelsu.o."
+    exit 1
+  }
+  grep -Fq 'find_kernel_symbol_exact' "${ksu_kernel_dir}/infra/symbol_resolver.c" || {
+    echo "::error::SukiSU KPM symbol resolver implementation is missing."
+    exit 1
+  }
 
   {
     echo "==== KPM SOURCE PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
     echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_branch=${MODULES_BRANCH}"
     echo "modules_commit=${MODULES_COMMIT}"
     echo "sukisu_commit=${KSU_COMMIT}"
     grep -nE '^[[:space:]]*config KPM$|^[[:space:]]*select KALLSYMS(_ALL)?$' "${ksu_kernel_dir}/Kconfig" || true
     grep -Fn 'obj-$(CONFIG_KPM)' "${ksu_kernel_dir}/Kbuild" || true
+    grep -Fn 'kernelsu-objs += infra/symbol_resolver.o' "${ksu_kernel_dir}/Kbuild" || true
     grep -nE 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' "${ksu_kernel_dir}/kpm/kpm.c" | head -n 20 || true
   } | tee kpm-source-proof.txt
 }
@@ -49,6 +59,13 @@ verify_kpm_source_integration() {
 verify_kpm_binary_presence() {
   local symbol_hits=0
   local object_file="out/${KSU_DRIVER_DIR:?}/kernelsu/kpm/kpm.o"
+  local resolver_object="out/${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"
+
+  if [[ ! -f "$resolver_object" ]] || \
+     ! nm "$resolver_object" | grep -E '[[:space:]][Tt][[:space:]]+find_kernel_symbol_exact$' >/dev/null; then
+    echo "::error::CONFIG_KPM=y, but kernelsu.o does not define find_kernel_symbol_exact."
+    exit 1
+  fi
 
   if [[ -f "$object_file" ]]; then
     nm "$object_file" | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' && symbol_hits=1 || true
@@ -68,6 +85,7 @@ verify_kpm_binary_presence() {
     echo "==== KPM BINARY PROOF ===="
     echo "kernel_commit=${KERNEL_COMMIT}"
     echo "sukisu_commit=${KSU_COMMIT}"
+    nm "$resolver_object" | grep -E 'find_kernel_symbol_exact$' | head -n 20 || true
     if [[ -f "$object_file" ]]; then
       nm "$object_file" | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' | head -n 20 || true
     fi
@@ -166,6 +184,7 @@ verify_susfs_source_integration() {
     echo "==== SUSFS SOURCE PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
     echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_branch=${MODULES_BRANCH}"
     echo "modules_commit=${MODULES_COMMIT}"
     echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
@@ -209,6 +228,7 @@ verify_susfs_binary_presence() {
     echo "==== SUSFS BINARY PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
     echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_branch=${MODULES_BRANCH}"
     echo "modules_commit=${MODULES_COMMIT}"
     echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"
@@ -318,6 +338,7 @@ verify_resukisu_susfs_hook_mode() {
     echo "==== RESUKISU SUSFS HOOK PROOF ===="
     echo "kernel_branch=${KERNEL_BRANCH}"
     echo "kernel_commit=${KERNEL_COMMIT}"
+    echo "modules_branch=${MODULES_BRANCH}"
     echo "modules_commit=${MODULES_COMMIT}"
     echo "ksu_commit=${KSU_COMMIT}"
     echo "susfs_ref=${SUSFS_REF}"

@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${KERNEL_REPO:?}"
 : "${MODULES_REPO:?}"
 : "${KERNEL_BRANCH:?}"
+: "${MODULES_BRANCH:?}"
 : "${KERNEL_COMMIT:?}"
 : "${MODULES_COMMIT:?}"
 : "${KERNEL_CLONE_DIR:?}"
@@ -44,7 +45,7 @@ clone_repo() {
 }
 
 # Kick off modules clone in background; kernel clone in foreground.
-clone_repo "$MODULES_REPO" "$KERNEL_BRANCH" "$MODULES_COMMIT" "$MODULES_CLONE_DIR" "modules repo" &
+clone_repo "$MODULES_REPO" "$MODULES_BRANCH" "$MODULES_COMMIT" "$MODULES_CLONE_DIR" "modules repo" &
 MODULES_PID=$!
 
 clone_repo "$KERNEL_REPO" "$KERNEL_BRANCH" "$KERNEL_COMMIT" "$KERNEL_CLONE_DIR" "kernel repo"

@@ -17,7 +17,8 @@ Shell implementation used by the GitHub Actions workflows.
 ## Shared libraries
 
 - `lib/profile-data.sh` contains pure profile, root, Clang, KPM, SUSFS, and Android
-  version mappings. It performs no network access and is covered by offline tests.
+  version mappings, including source-specific repository and modules-branch
+  overrides. It performs no network access and is covered by offline tests.
 - `lib/git-helpers.sh` provides bounded retries for upstream ref lookup and fetches.
 - `lib/anykernel-helpers.sh` applies and verifies device/version protection in
   AnyKernel3 properties.
@@ -28,7 +29,8 @@ Shell implementation used by the GitHub Actions workflows.
   recognized upstream drift, enforces the supported version floor, and rejects
   unknown conflicts.
 - `patches/sukisu-susfs-core-init-compat.patch` is the guarded compatibility
-  delta for the recognized SukiSU Ultra UTS-spoof init drift.
+  delta for the recognized SukiSU Ultra UTS-spoof init and KPM symbol-resolver
+  drift.
 - `lib/nomount-setup.sh` integrates an exact NoMount commit into the kernel fs
   Kconfig/Makefile only for the explicit experimental preset.
 - `lib/verify.sh` performs source, config, hook-mode, and binary verification,
@@ -45,7 +47,7 @@ offline tests, and actionlint. The scheduled upstream-health workflow resolves
 every profile and runs a matrix covering KernelSU-Next + SUSFS, the combined
 SukiSU Ultra + SUSFS + KPM preset, and ReSukiSU + SUSFS + NoMount on
 representative SM7550, SM8450, SM8550, and SM8650 sources, including targeted
-integration object compilation.
+integration object compilation and a LunarisOS OnePlus 11 baseline smoke test.
 
 ## Conventions
 

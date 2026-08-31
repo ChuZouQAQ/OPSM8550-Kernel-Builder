@@ -43,6 +43,9 @@ jobs:
           - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
           - SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
           - SM8650 | OnePlus 12 | LineageOS (recommended)
+        include:
+          - integration: No root changes
+            profile: SM8550 | OnePlus 11 | LunarisOS
     steps:
       - name: Checkout pipeline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
