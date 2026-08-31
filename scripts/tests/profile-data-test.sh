@@ -56,6 +56,8 @@ grep -Fq 'CCACHE_KEY_PREFIX' "$WORKFLOW_FILE" \
   || fail "workflow is missing the cache-key-only ccache prefix"
 grep -Fq 'RELEASE_TAG="kernel-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' "$WORKFLOW_FILE" \
   || fail "release workflow is missing its immutable tag reservation"
+grep -Fq 'if ! EXISTING_SHA="$(gh api' "$WORKFLOW_FILE" \
+  || fail "release tag lookup must distinguish a missing tag from an existing SHA"
 grep -Fq 'gh release create "$RELEASE_TAG"' "$WORKFLOW_FILE" \
   || fail "release workflow must publish the pre-reserved tag"
 grep -Fq 'gh api "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" --method DELETE' "$WORKFLOW_FILE" \
