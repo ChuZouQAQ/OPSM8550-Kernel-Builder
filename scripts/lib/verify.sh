@@ -59,11 +59,21 @@ verify_kpm_source_integration() {
 verify_kpm_binary_presence() {
   local symbol_hits=0
   local object_file="out/${KSU_DRIVER_DIR:?}/kernelsu/kpm/kpm.o"
-  local resolver_object="out/${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"
+  local resolver_object="out/${KSU_DRIVER_DIR}/kernelsu/infra/symbol_resolver.o"
+  local llvm_nm="${CLANG_ROOT:?}/llvm-nm"
+
+  # The composite kernelsu.o is an LTO intermediate. GNU nm cannot reliably
+  # report its LLVM symbols even though the final vmlinux resolves their users.
+  # Inspect the defining bitcode object with llvm-nm from the active toolchain.
+  if [[ ! -x "$llvm_nm" ]]; then
+    echo "::error::AOSP Clang llvm-nm is missing at ${llvm_nm}."
+    exit 1
+  fi
 
   if [[ ! -f "$resolver_object" ]] || \
-     ! nm "$resolver_object" | grep -E '[[:space:]][Tt][[:space:]]+find_kernel_symbol_exact$' >/dev/null; then
-    echo "::error::CONFIG_KPM=y, but kernelsu.o does not define find_kernel_symbol_exact."
+     ! "$llvm_nm" --defined-only "$resolver_object" 2>/dev/null | \
+       grep -E '[[:space:]][Tt][[:space:]]+find_kernel_symbol_exact([.$][^[:space:]]*)?$' >/dev/null; then
+    echo "::error::CONFIG_KPM=y, but compiled symbol_resolver.o does not define find_kernel_symbol_exact according to llvm-nm."
     exit 1
   fi
 
@@ -85,7 +95,10 @@ verify_kpm_binary_presence() {
     echo "==== KPM BINARY PROOF ===="
     echo "kernel_commit=${KERNEL_COMMIT}"
     echo "sukisu_commit=${KSU_COMMIT}"
-    nm "$resolver_object" | grep -E 'find_kernel_symbol_exact$' | head -n 20 || true
+    echo "resolver_object=${resolver_object}"
+    echo "resolver_nm=${llvm_nm}"
+    "$llvm_nm" --defined-only "$resolver_object" 2>/dev/null | \
+      grep -E 'find_kernel_symbol_exact([.$][^[:space:]]*)?$' | head -n 20 || true
     if [[ -f "$object_file" ]]; then
       nm "$object_file" | grep -E 'sukisu_(handle_kpm|kpm_load_module_path|kpm_unload_module)' | head -n 20 || true
     fi

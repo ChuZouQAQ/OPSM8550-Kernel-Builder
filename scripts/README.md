@@ -36,7 +36,8 @@ Shell implementation used by the GitHub Actions workflows.
 - `lib/nomount-setup.sh` integrates an exact NoMount commit into the kernel fs
   Kconfig/Makefile only for the explicit experimental preset.
 - `lib/verify.sh` performs source, config, hook-mode, and binary verification,
-  including dedicated KPM, SUSFS, and NoMount proofs.
+  including an LTO-aware `llvm-nm` check of the compiled KPM resolver and
+  dedicated KPM, SUSFS, and NoMount proofs.
 
 ## Tests
 

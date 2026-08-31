@@ -282,6 +282,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang"
+          test -x "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/llvm-nm"
           "${GITHUB_WORKSPACE}/toolchains/${CLANG_VERSION}/bin/clang" --version | head -n 1
 
       - name: Apply integrations and build

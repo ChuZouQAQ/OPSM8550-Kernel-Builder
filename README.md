@@ -85,7 +85,9 @@ resolves and applies the matching SUSFS branch at an exact commit. Validation
 mode compiles the KPM and SUSFS integration objects and checks their exported
 signatures; a full build repeats the signature checks against the final kernel
 artifacts. Both paths fail closed when expected wiring, config, objects, or
-symbols are missing.
+symbols are missing. KPM resolver verification uses AOSP Clang's LTO-aware
+`llvm-nm` on the compiled resolver object instead of GNU `nm` on the aggregate
+LTO intermediate.
 
 SUSFS branches are selected from the SoC and Android/kernel branch. Known vendor
 include drift and the current SukiSU Ultra UTS-spoof, KPM resolver, kernel-umount,

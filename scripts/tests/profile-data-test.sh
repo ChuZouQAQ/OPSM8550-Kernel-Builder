@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/../lib/susfs-apply.sh"
 # shellcheck source=../lib/kernel-helpers.sh
 . "${SCRIPT_DIR}/../lib/kernel-helpers.sh"
+# shellcheck source=../lib/verify.sh
+. "${SCRIPT_DIR}/../lib/verify.sh"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -143,7 +145,13 @@ grep -Fq 'SukiSU KPM symbol resolver is not linked into kernelsu.o.' "${SCRIPT_D
   || fail "KPM source verification does not check symbol resolver linkage"
 grep -Fq '"${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"' "$COMPILE_SCRIPT" \
   || fail "KPM smoke compilation does not build the composite KernelSU object"
-grep -Fq 'kernelsu.o does not define find_kernel_symbol_exact' "${SCRIPT_DIR}/../lib/verify.sh" \
+grep -Fq 'out/${KSU_DRIVER_DIR}/kernelsu/infra/symbol_resolver.o' "${SCRIPT_DIR}/../lib/verify.sh" \
+  || fail "KPM binary verification does not inspect the compiled symbol resolver object"
+grep -Fq 'local llvm_nm="${CLANG_ROOT:?}/llvm-nm"' "${SCRIPT_DIR}/../lib/verify.sh" \
+  || fail "KPM binary verification does not use the active LTO-aware LLVM symbol tool"
+grep -Fq 'toolchains/${CLANG_VERSION}/bin/llvm-nm' "$WORKFLOW_FILE" \
+  || fail "workflow does not validate the KPM symbol inspection tool"
+grep -Fq 'compiled symbol_resolver.o does not define find_kernel_symbol_exact' "${SCRIPT_DIR}/../lib/verify.sh" \
   || fail "KPM binary verification does not require a defined symbol resolver"
 grep -Fq 'CONFIG_KPM CONFIG_KALLSYMS CONFIG_KALLSYMS_ALL' "${SCRIPT_DIR}/../lib/kernel-helpers.sh" \
   || fail "KPM preset is missing required config values"
@@ -173,8 +181,31 @@ assert_eq "16" "$SUPPORTED_ANDROID_VERSIONS" "Android 16 development detection"
 ANYKERNEL_FIXTURE="$(mktemp)"
 UPDATE_BINARY_FIXTURE="$(mktemp)"
 KPM_CONFIG_FIXTURE="$(mktemp)"
+KPM_VERIFY_FIXTURE="$(mktemp -d)"
 NOMOUNT_FIXTURE_DIR="$(mktemp -d)"
-trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE" "$KPM_CONFIG_FIXTURE"; rm -rf "$NOMOUNT_FIXTURE_DIR"' EXIT
+trap 'rm -f "$ANYKERNEL_FIXTURE" "$UPDATE_BINARY_FIXTURE" "$KPM_CONFIG_FIXTURE"; rm -rf "$KPM_VERIFY_FIXTURE" "$NOMOUNT_FIXTURE_DIR"' EXIT
+
+mkdir -p \
+  "$KPM_VERIFY_FIXTURE/out/drivers/kernelsu/infra" \
+  "$KPM_VERIFY_FIXTURE/toolchain"
+: > "$KPM_VERIFY_FIXTURE/out/drivers/kernelsu/infra/symbol_resolver.o"
+printf '%s\n' '0000000000001000 T sukisu_handle_kpm' > "$KPM_VERIFY_FIXTURE/out/System.map"
+cat > "$KPM_VERIFY_FIXTURE/toolchain/llvm-nm" <<'EOF'
+#!/usr/bin/env bash
+[[ "${*: -1}" == */infra/symbol_resolver.o ]] || exit 1
+printf '%s\n' '0000000000000000 T find_kernel_symbol_exact'
+EOF
+chmod +x "$KPM_VERIFY_FIXTURE/toolchain/llvm-nm"
+(
+  cd "$KPM_VERIFY_FIXTURE"
+  export KSU_DRIVER_DIR=drivers
+  export CLANG_ROOT="$KPM_VERIFY_FIXTURE/toolchain"
+  export KERNEL_COMMIT=test-kernel
+  export KSU_COMMIT=test-sukisu
+  verify_kpm_binary_presence >/dev/null
+  grep -Fq 'T find_kernel_symbol_exact' kpm-proof.txt \
+    || fail "KPM proof does not record the leaf resolver definition"
+)
 
 KSU_TYPE="SukiSU-Ultra-with-susfs-KPM"
 apply_variant_configs "$KPM_CONFIG_FIXTURE"
