@@ -1,7 +1,7 @@
 # OnePlus Snapdragon Kernel Builder
 
-GitHub Actions pipeline for building selected OnePlus Snapdragon 7 Gen 3,
-8 Gen 1, 8 Gen 2, and 8 Gen 3 kernels. The repository contains the build
+GitHub Actions pipeline for building selected OnePlus Snapdragon 7 Gen 3(SM7550),
+8 Gen 1(SM8450), 8 Gen 2(SM8550), and 8 Gen 3(SM8650) kernels. The repository contains the build
 pipeline, validation, packaging, and release automation; kernel sources are
 resolved from upstream repositories at build time.
 
