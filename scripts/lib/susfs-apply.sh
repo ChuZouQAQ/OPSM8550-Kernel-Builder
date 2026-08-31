@@ -104,21 +104,52 @@ resolve_known_sukisu_susfs_rejects() {
   local ksu_repo_dir="$1"
   local ksu_dir="$2"
   local init_file="${ksu_dir}/core/init.c"
+  local kernel_umount_file="${ksu_dir}/feature/kernel_umount.c"
+  local allowlist_file="${ksu_dir}/policy/allowlist.c"
   local kbuild_file="${ksu_dir}/Kbuild"
   local symbol_resolver_file="${ksu_dir}/infra/symbol_resolver.c"
-  local compat_patch
+  local core_compat_patch
+  local policy_compat_patch
   local reject
+  local relative_reject
+  local has_policy_drift=0
   local reject_files=()
+  local reject_relatives=()
 
   [[ "${KSU_TYPE:-}" == "SukiSU-Ultra-with-susfs-KPM" ]] || return 1
 
   mapfile -t reject_files < <(find "$ksu_repo_dir" -name '*.rej' -print | sort)
-  [[ "${#reject_files[@]}" -eq 1 ]] || return 1
+  for reject in "${reject_files[@]}"; do
+    relative_reject="$(realpath --relative-to="$ksu_repo_dir" "$reject")"
+    reject_relatives+=("$relative_reject")
+  done
 
-  reject="${reject_files[0]}"
-  [[ "$(realpath --relative-to="$ksu_repo_dir" "$reject")" == "kernel/core/init.c.rej" ]] || return 1
-  grep -q 'ksu_init_symbol_resolver' "$reject" || return 1
-  grep -q 'ksu_syscall_hook_manager_init' "$reject" || return 1
+  case "${#reject_relatives[@]}" in
+    1)
+      [[ "${reject_relatives[0]}" == "kernel/core/init.c.rej" ]] || return 1
+      ;;
+    3)
+      [[ "${reject_relatives[0]}" == "kernel/core/init.c.rej" ]] || return 1
+      [[ "${reject_relatives[1]}" == "kernel/feature/kernel_umount.c.rej" ]] || return 1
+      [[ "${reject_relatives[2]}" == "kernel/policy/allowlist.c.rej" ]] || return 1
+      has_policy_drift=1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  grep -q 'ksu_init_symbol_resolver' "${ksu_repo_dir}/kernel/core/init.c.rej" || return 1
+  grep -q 'ksu_syscall_hook_manager_init' "${ksu_repo_dir}/kernel/core/init.c.rej" || return 1
+
+  if [[ "$has_policy_drift" -eq 1 ]]; then
+    grep -Fq 'Webview zygote forked from zygote: zygote -> webview_zygote' \
+      "${ksu_repo_dir}/kernel/feature/kernel_umount.c.rej" || return 1
+    grep -Fq 'ksu_uid_should_umount(new_uid)' \
+      "${ksu_repo_dir}/kernel/feature/kernel_umount.c.rej" || return 1
+    grep -Fq 'ksu_get_manager_appid() == uid % PER_USER_RANGE' \
+      "${ksu_repo_dir}/kernel/policy/allowlist.c.rej" || return 1
+  fi
 
   test -f "$init_file" || return 1
   grep -Fq '#include "feature/uts_spoof.h"' "$init_file" || return 1
@@ -135,12 +166,27 @@ resolve_known_sukisu_susfs_rejects() {
     return 1
   fi
 
-  compat_patch="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../patches/sukisu-susfs-core-init-compat.patch"
-  test -f "$compat_patch" || return 1
+  core_compat_patch="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../patches/sukisu-susfs-core-init-compat.patch"
+  test -f "$core_compat_patch" || return 1
+
+  if [[ "$has_policy_drift" -eq 1 ]]; then
+    test -f "$kernel_umount_file" || return 1
+    test -f "$allowlist_file" || return 1
+    grep -Fq 'webview_zygote (controlled by feature policy)' "$kernel_umount_file" || return 1
+    grep -Fq 'ksu_uid_should_umount(new_uid)' "$kernel_umount_file" || return 1
+    grep -Fq 'ksu_get_manager_appid() == uid % PER_USER_RANGE' "$allowlist_file" || return 1
+    grep -Fq 'if (unlikely(uid == WEBVIEW_ZYGOTE_UID))' "$allowlist_file" || return 1
+
+    policy_compat_patch="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../patches/sukisu-susfs-policy-compat.patch"
+    test -f "$policy_compat_patch" || return 1
+  fi
 
   (
     cd "$ksu_repo_dir" || exit 1
-    patch --batch --forward -p1 < "$compat_patch"
+    patch --batch --forward -p1 < "$core_compat_patch"
+    if [[ "$has_policy_drift" -eq 1 ]]; then
+      patch --batch --forward -p1 < "$policy_compat_patch"
+    fi
   ) || return 1
 
   grep -Fq '#include "feature/uts_spoof.h"' "$init_file" || return 1
@@ -156,8 +202,19 @@ resolve_known_sukisu_susfs_rejects() {
     return 1
   fi
 
-  rm -f "$reject"
-  echo "[+] Resolved recognized SukiSU Ultra UTS-spoof/KPM resolver drift in the SUSFS patch."
+  if [[ "$has_policy_drift" -eq 1 ]]; then
+    if grep -Eq 'ksu_uid_should_umount\(new_uid\)|is_zygote_child = is_zygote' "$kernel_umount_file"; then
+      return 1
+    fi
+    if grep -Fq 'ksu_get_manager_appid() == uid % PER_USER_RANGE' "$allowlist_file"; then
+      return 1
+    fi
+    grep -Fq 'if (unlikely(uid == WEBVIEW_ZYGOTE_UID))' "$allowlist_file" || return 1
+    grep -Fq 'return ksu_webview_zygote_umount_enabled;' "$allowlist_file" || return 1
+  fi
+
+  rm -f "${reject_files[@]}"
+  echo "[+] Resolved recognized SukiSU Ultra UTS-spoof/KPM resolver/policy drift in the SUSFS patch."
 }
 
 patch_kernelsu_for_susfs() {

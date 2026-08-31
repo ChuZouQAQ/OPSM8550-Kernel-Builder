@@ -31,6 +31,8 @@ Shell implementation used by the GitHub Actions workflows.
 - `patches/sukisu-susfs-core-init-compat.patch` is the guarded compatibility
   delta for the recognized SukiSU Ultra UTS-spoof init and KPM symbol-resolver
   drift.
+- `patches/sukisu-susfs-policy-compat.patch` is the guarded compatibility delta
+  for the recognized SukiSU Ultra kernel-umount and manager-allowlist drift.
 - `lib/nomount-setup.sh` integrates an exact NoMount commit into the kernel fs
   Kconfig/Makefile only for the explicit experimental preset.
 - `lib/verify.sh` performs source, config, hook-mode, and binary verification,

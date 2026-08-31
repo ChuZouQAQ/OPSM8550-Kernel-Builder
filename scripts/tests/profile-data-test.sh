@@ -36,6 +36,7 @@ RESOLVER_SCRIPT="${SCRIPT_DIR}/../resolve-profile.sh"
 KSU_SETUP_SCRIPT="${SCRIPT_DIR}/../lib/ksu-setup.sh"
 SUSFS_APPLY_SCRIPT="${SCRIPT_DIR}/../lib/susfs-apply.sh"
 SUKISU_SUSFS_COMPAT_PATCH="${SCRIPT_DIR}/../patches/sukisu-susfs-core-init-compat.patch"
+SUKISU_SUSFS_POLICY_COMPAT_PATCH="${SCRIPT_DIR}/../patches/sukisu-susfs-policy-compat.patch"
 for profile in "${profiles[@]}"; do
   grep -Fq -- "- ${profile}" "$WORKFLOW_FILE" \
     || fail "workflow is missing profile option: $profile"
@@ -128,6 +129,16 @@ grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "$SUKISU_SUSFS_COMPAT_PATCH"
   || fail "SukiSU SUSFS/KPM compatibility patch does not restore the symbol resolver object"
 grep -Fq 'ksu_init_symbol_resolver();' "$SUKISU_SUSFS_COMPAT_PATCH" \
   && fail "SukiSU SUSFS/KPM compatibility patch must preserve, not duplicate, resolver initialization"
+test -f "$SUKISU_SUSFS_POLICY_COMPAT_PATCH" \
+  || fail "SUSFS integration is missing the guarded SukiSU policy compatibility patch"
+grep -Fq 'webview_zygote (controlled by feature policy)' "$SUKISU_SUSFS_POLICY_COMPAT_PATCH" \
+  || fail "SukiSU policy compatibility patch does not resolve kernel umount drift"
+grep -Fq 'ksu_get_manager_appid() == uid % PER_USER_RANGE' "$SUKISU_SUSFS_POLICY_COMPAT_PATCH" \
+  || fail "SukiSU policy compatibility patch does not resolve allowlist drift"
+grep -Fq 'kernel/feature/kernel_umount.c.rej' "$SUSFS_APPLY_SCRIPT" \
+  || fail "SukiSU drift resolver does not guard the kernel umount reject"
+grep -Fq 'kernel/policy/allowlist.c.rej' "$SUSFS_APPLY_SCRIPT" \
+  || fail "SukiSU drift resolver does not guard the allowlist reject"
 grep -Fq 'SukiSU KPM symbol resolver is not linked into kernelsu.o.' "${SCRIPT_DIR}/../lib/verify.sh" \
   || fail "KPM source verification does not check symbol resolver linkage"
 grep -Fq '"${KSU_DRIVER_DIR}/kernelsu/kernelsu.o"' "$COMPILE_SCRIPT" \

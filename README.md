@@ -88,10 +88,11 @@ artifacts. Both paths fail closed when expected wiring, config, objects, or
 symbols are missing.
 
 SUSFS branches are selected from the SoC and Android/kernel branch. Known vendor
-include drift and the current SukiSU Ultra UTS-spoof/KPM resolver drift are
-repaired only for explicitly recognized conflicts. The compatibility check keeps
-the KPM symbol resolver linked and initialized after the SUSFS patch. Unknown
-patch rejects fail closed and are included in diagnostics.
+include drift and the current SukiSU Ultra UTS-spoof, KPM resolver, kernel-umount,
+and allowlist drift are repaired only for explicitly recognized conflicts. The
+compatibility checks keep the KPM symbol resolver linked and initialized and
+preserve SukiSU's WebView zygote policy after the SUSFS patch. Unknown patch
+rejects fail closed and are included in diagnostics.
 
 The KernelSU-Next + SUSFS preset resolves `pershoot/KernelSU-Next@dev-susfs`
 to an exact commit. The regular KernelSU-Next preset remains on the official
