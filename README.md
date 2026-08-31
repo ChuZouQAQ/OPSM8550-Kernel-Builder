@@ -56,8 +56,9 @@ safely.
   objects without spending time on a full kernel compile.
 - `Full build (artifact only)` builds and uploads a 14-day workflow artifact.
   This is the default and does not create a permanent GitHub Release.
-- `Full build and publish release` builds the same verified artifact, then a
-  separate least-privilege job publishes the release.
+- `Full build and publish release` first reserves an immutable tag at the
+  workflow commit, builds the same verified artifact, then a separate
+  least-privilege job publishes the release from that tag.
 
 ## Root integrations
 
@@ -166,10 +167,13 @@ not match the phone.
 
 ## CI security and reliability
 
-The build job has read-only repository permissions and checkout credentials are
-not persisted. External kernel Makefiles therefore do not run in a job holding
-release write credentials. Release publication runs separately and receives
-`contents: write` only after the build artifact succeeds.
+The tag-reservation job has `contents: write` but checks out and executes no
+repository or external source. The build job keeps read-only repository
+permissions and does not persist checkout credentials, so external kernel
+Makefiles never run with release write credentials. After a successful build,
+the separate publication job receives `contents: write`, verifies the reserved
+tag and artifact checksums, and creates the Release. A failed build removes its
+unused reserved tag automatically.
 
 Network Git operations use bounded retries. Release creation and asset uploads
 are idempotent, time-limited, and retried, preventing a stalled upload from

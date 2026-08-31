@@ -100,8 +100,45 @@ permissions:
   contents: read
 
 jobs:
+  reserve_release_tag:
+    name: Reserve immutable release tag
+    if: inputs.build_mode == 'Full build and publish release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.reserve.outputs.release_tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Reserve tag at the workflow commit
+        id: reserve
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="kernel-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          EXISTING_SHA="$(gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null || true)"
+
+          if [[ -n "$EXISTING_SHA" && "$EXISTING_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::Reserved release tag ${RELEASE_TAG} points to ${EXISTING_SHA}, expected ${GITHUB_SHA}."
+            exit 1
+          fi
+          if [[ -z "$EXISTING_SHA" ]]; then
+            gh api "repos/${GH_REPO}/git/refs" \
+              --method POST \
+              -f "ref=refs/tags/${RELEASE_TAG}" \
+              -f "sha=${GITHUB_SHA}" >/dev/null
+          fi
+
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "[release] Reserved ${RELEASE_TAG} at ${GITHUB_SHA}."
+
   build:
     name: Build ${{ inputs.root_solution }}
+    needs: reserve_release_tag
+    if: ${{ always() && (needs.reserve_release_tag.result == 'success' || needs.reserve_release_tag.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     concurrency:
@@ -297,7 +334,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: inputs.build_mode == 'Full build and publish release'
-    needs: build
+    needs: [reserve_release_tag, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -305,6 +342,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.reserve_release_tag.outputs.release_tag }}
       RELEASE_NAME: ${{ needs.build.outputs.release_name }}
 
     steps:
@@ -328,20 +366,21 @@ jobs:
 
           ensure_release() {
             local attempt
-            if gh release view "$RELEASE_NAME" >/dev/null 2>&1; then
-              gh release edit "$RELEASE_NAME" --title "$RELEASE_NAME" --notes-file "$NOTES_FILE"
+            if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+              gh release edit "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file "$NOTES_FILE"
               return 0
             fi
             for attempt in 1 2 3; do
-              if timeout 90 gh release create "$RELEASE_NAME" \
-                --target "$GITHUB_SHA" \
+              if timeout 90 gh release create "$RELEASE_TAG" \
+                --verify-tag \
                 --title "$RELEASE_NAME" \
                 --notes-file "$NOTES_FILE"; then
                 return 0
               fi
-              gh release view "$RELEASE_NAME" >/dev/null 2>&1 && return 0
+              gh release view "$RELEASE_TAG" >/dev/null 2>&1 && return 0
               sleep $((attempt * 5))
             done
+            echo "::error::GitHub denied release creation for the pre-reserved tag ${RELEASE_TAG}. Confirm that this job's setup log grants Contents: write."
             return 1
           }
 
@@ -349,7 +388,7 @@ jobs:
             local file="$1"
             local attempt
             for attempt in 1 2 3; do
-              timeout 240 gh release upload "$RELEASE_NAME" "$file" --clobber && return 0
+              timeout 240 gh release upload "$RELEASE_TAG" "$file" --clobber && return 0
               sleep $((attempt * 5))
             done
             return 1
@@ -359,3 +398,23 @@ jobs:
           for asset in "$ASSET_DIR"/*.zip "$ASSET_DIR"/Image-* "$ASSET_DIR"/build-info.json "$ASSET_DIR"/SHA256SUMS; do
             upload_asset "$asset"
           done
+
+  cleanup_failed_build_tag:
+    name: Remove unused release tag
+    if: ${{ always() && inputs.build_mode == 'Full build and publish release' && needs.reserve_release_tag.result == 'success' && needs.build.result != 'success' }}
+    needs: [reserve_release_tag, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.reserve_release_tag.outputs.release_tag }}
+
+    steps:
+      - name: Delete reserved tag after failed build
+        run: |
+          set -euo pipefail
+          gh api "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" --method DELETE
+          echo "[release] Removed unused tag ${RELEASE_TAG}."
