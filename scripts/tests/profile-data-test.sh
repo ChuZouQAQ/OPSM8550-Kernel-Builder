@@ -40,6 +40,11 @@ for profile in "${profiles[@]}"; do
   grep -Fq -- "- ${profile}" "$WORKFLOW_FILE" \
     || fail "workflow is missing profile option: $profile"
 done
+kernel_branch_input="$(sed -n '/^      kernel_branch:/,/^      clang_choice:/p' "$WORKFLOW_FILE")"
+grep -Fq 'type: choice' <<< "$kernel_branch_input" \
+  || fail "manual kernel branch input must be a choice"
+grep -Fq -- '- "16.0"' <<< "$kernel_branch_input" \
+  || fail "manual kernel branch choices must include crDroid 16.0"
 grep -Fq '"CC=ccache clang"' "$COMPILE_SCRIPT" \
   || fail "compile script is not passing ccache on the make command line"
 grep -Fq 'KBUILD_BUILD_TIMESTAMP=' "$COMPILE_SCRIPT" \

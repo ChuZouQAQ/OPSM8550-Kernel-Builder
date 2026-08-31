@@ -58,7 +58,7 @@ if [[ "$INPUT_BRANCH_MODE" == "Use the recommended branch automatically" ]]; the
 else
   KERNEL_BRANCH="$INPUT_KERNEL_BRANCH"
   if [[ -z "$KERNEL_BRANCH" ]]; then
-    echo "::error::Please type a branch name when using manual branch mode."
+    echo "::error::Please select a branch when using manual branch mode."
     exit 1
   fi
   if ! git check-ref-format --branch "$KERNEL_BRANCH" >/dev/null 2>&1; then

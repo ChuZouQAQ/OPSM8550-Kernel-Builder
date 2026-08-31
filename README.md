@@ -116,9 +116,9 @@ an explicit opt-in instead of changing existing build presets.
    a full build when validation passes.
 6. Use release mode only for an artifact you intend to keep or distribute.
 
-Manual branch names are validated with Git before they are written to GitHub
-Actions environment files. Every kernel, modules, root implementation, SUSFS,
-NoMount, and AnyKernel input is resolved to an exact commit before cloning.
+Manually selected branch names are validated with Git before they are written
+to GitHub Actions environment files. Every kernel, modules, root implementation,
+SUSFS, NoMount, and AnyKernel input is resolved to an exact commit before cloning.
 
 ## Build performance
 

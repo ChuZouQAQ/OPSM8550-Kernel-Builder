@@ -23,18 +23,39 @@ on:
           - SM8650 | OnePlus 12 | LineageOS (recommended)
           - SM8650 | OnePlus 12 | crDroid
       branch_mode:
-        description: Use the upstream default branch or enter one manually
+        description: Use the upstream default branch or select one manually
         required: true
         type: choice
         default: Use the recommended branch automatically
         options:
           - Use the recommended branch automatically
-          - I want to type the branch name myself
+          - I want to select the branch myself
       kernel_branch:
-        description: Only used in manual mode, for example lineage-23.2
-        required: false
-        type: string
-        default: ""
+        description: Only used in manual mode
+        required: true
+        type: choice
+        default: "16.0"
+        options:
+          - "16.0"
+          - "15.0"
+          - "14.0"
+          - "13.0"
+          - lineage-24.0
+          - lineage-23.2
+          - lineage-23.1
+          - lineage-23.0
+          - lineage-22.2
+          - lineage-22.1
+          - lineage-21
+          - lineage-20
+          - seventeen
+          - sixteen-qpr2
+          - sixteen-qpr1
+          - fifteen
+          - oneplus/sm8450_b_16.0_oneplus_10_pro
+          - oneplus/sm8550_b_16.0.0_oneplus_11
+          - oneplus/sm8550_b_16.0.0_oneplus_12r
+          - oneplus/sm8650_b_16.0.0_oneplus12
       clang_choice:
         description: Compiler preset; auto is safest for normal builds
         required: true
