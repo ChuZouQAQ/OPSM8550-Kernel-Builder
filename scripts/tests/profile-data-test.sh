@@ -129,6 +129,14 @@ grep -Fq '"SukiSU-Ultra-with-KPM"|"SukiSU-Ultra-with-susfs-KPM"|"SukiSU-Ultra-wi
   || fail "KernelSU setup does not install SukiSU Ultra for all combined presets"
 grep -Fq 'resolve_known_sukisu_susfs_rejects' "$SUSFS_APPLY_SCRIPT" \
   || fail "SUSFS integration is missing the guarded SukiSU drift resolver"
+KSU_TYPE="SukiSU-Ultra-with-susfs-KPM"
+is_sukisu_susfs_variant || fail "SukiSU SUSFS/KPM preset must allow guarded SUSFS drift repair"
+KSU_TYPE="SukiSU-Ultra-with-susfs-nomount-KPM"
+is_sukisu_susfs_variant || fail "SukiSU SUSFS/NoMount/KPM preset must allow guarded SUSFS drift repair"
+KSU_TYPE="SukiSU-Ultra-with-KPM"
+if is_sukisu_susfs_variant; then
+  fail "SukiSU KPM-only preset must not enter SUSFS drift repair"
+fi
 test -f "$SUKISU_SUSFS_COMPAT_PATCH" \
   || fail "SUSFS integration is missing the guarded SukiSU compatibility patch"
 grep -Fq 'kernelsu-objs += infra/symbol_resolver.o' "$SUKISU_SUSFS_COMPAT_PATCH" \

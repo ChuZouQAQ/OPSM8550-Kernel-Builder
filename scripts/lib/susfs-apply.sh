@@ -10,6 +10,13 @@ version_is_at_least() {
   [[ "$(printf '%s\n' "$minimum" "$actual" | sort -V | head -n 1)" == "$minimum" ]]
 }
 
+is_sukisu_susfs_variant() {
+  case "${KSU_TYPE:-}" in
+    SukiSU-Ultra-with-susfs-KPM|SukiSU-Ultra-with-susfs-nomount-KPM) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 apply_susfs_task_mmu_fix() {
   local file="fs/proc/task_mmu.c"
   local block
@@ -116,7 +123,7 @@ resolve_known_sukisu_susfs_rejects() {
   local reject_files=()
   local reject_relatives=()
 
-  [[ "${KSU_TYPE:-}" == "SukiSU-Ultra-with-susfs-KPM" ]] || return 1
+  is_sukisu_susfs_variant || return 1
 
   mapfile -t reject_files < <(find "$ksu_repo_dir" -name '*.rej' -print | sort)
   for reject in "${reject_files[@]}"; do
