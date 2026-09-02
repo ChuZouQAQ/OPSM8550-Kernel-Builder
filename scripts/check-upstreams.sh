@@ -47,7 +47,7 @@ for profile in "${PROFILES[@]}"; do
      INPUT_BRANCH_MODE="Use the recommended branch automatically" \
      INPUT_KERNEL_BRANCH="" \
      INPUT_CLANG_CHOICE="Recommended (auto-select based on branch)" \
-     INPUT_ROOT_SOLUTION="ReSukiSU + SUSFS + NoMount (experimental)" \
+     INPUT_ROOT_SOLUTION="SukiSU Ultra + SUSFS + NoMount + KPM (experimental)" \
      INPUT_BUILD_MODE="Patch/config validation only" \
      GITHUB_ENV="$env_file" \
      GITHUB_OUTPUT="$output_file" \

@@ -73,6 +73,7 @@ Available workflow presets:
 | `KowSU` | KowSU | Supported |
 | `SukiSU Ultra + KPM (experimental)` | SukiSU Ultra with KPM | Experimental |
 | `SukiSU Ultra + SUSFS + KPM (experimental)` | SukiSU Ultra with SUSFS and KPM | Experimental |
+| `SukiSU Ultra + SUSFS + NoMount + KPM (experimental)` | SukiSU Ultra with SUSFS, NoMount, and KPM | Experimental |
 | `ReSukiSU` | ReSukiSU | Supported |
 | `ReSukiSU + susfs` | ReSukiSU with SUSFS | Supported |
 | `ReSukiSU + SUSFS + NoMount (experimental)` | ReSukiSU with SUSFS and NoMount | Experimental |
@@ -80,14 +81,15 @@ Available workflow presets:
 KPM is available only through the dedicated SukiSU Ultra presets because current
 ReSukiSU no longer supports it. The pipeline resolves SukiSU Ultra to an exact
 `main` commit, checks its KPM sources and Kbuild wiring, and enables `CONFIG_KPM`,
-`CONFIG_KALLSYMS`, and `CONFIG_KALLSYMS_ALL`. The combined preset additionally
-resolves and applies the matching SUSFS branch at an exact commit. Validation
-mode compiles the KPM and SUSFS integration objects and checks their exported
-signatures; a full build repeats the signature checks against the final kernel
-artifacts. Both paths fail closed when expected wiring, config, objects, or
-symbols are missing. KPM resolver verification uses AOSP Clang's LTO-aware
-`llvm-nm` on the compiled resolver object instead of GNU `nm` on the aggregate
-LTO intermediate.
+`CONFIG_KALLSYMS`, and `CONFIG_KALLSYMS_ALL`. The SUSFS presets additionally
+resolve and apply the matching SUSFS branch at an exact commit. The four-feature
+preset also resolves NoMount at an exact commit and enables `CONFIG_KEYS` and
+`CONFIG_NOMOUNT`. Validation mode compiles the KPM, SUSFS, VFS, and NoMount
+integration objects and checks their exported signatures; a full build repeats
+the signature checks against the final kernel artifacts. Both paths fail closed
+when expected wiring, config, objects, or symbols are missing. KPM resolver
+verification uses AOSP Clang's LTO-aware `llvm-nm` on the compiled resolver
+object instead of GNU `nm` on the aggregate LTO intermediate.
 
 SUSFS branches are selected from the SoC and Android/kernel branch. Known vendor
 include drift and the current SukiSU Ultra UTS-spoof, KPM resolver, kernel-umount,
@@ -104,8 +106,8 @@ development tree; the pipeline still takes the kernel-side SUSFS files and
 patch from `simonpunk/susfs4ksu` at an exact commit.
 
 SUSFS builds require upstream v2.2.0 or newer and explicitly verify the
-`SUS_MAP` and `OPEN_REDIRECT` features in the final config. The NoMount preset
-integrates the exact resolved `master` commit, enables `CONFIG_NOMOUNT=y`, and
+`SUS_MAP` and `OPEN_REDIRECT` features in the final config. The NoMount presets
+integrate the exact resolved `master` commit, enable `CONFIG_NOMOUNT=y`, and
 checks both source wiring and final kernel signatures. NoMount hooks VFS
 operations and is marked experimental by its upstream project, so it remains
 an explicit opt-in instead of changing existing build presets.
@@ -193,14 +195,14 @@ Pushes and pull requests run:
 - Bash syntax checks
 - ShellCheck at warning severity
 - offline tests for all eleven profile mappings, root mappings (including
-  KernelSU-Next + SUSFS and SukiSU Ultra + SUSFS + KPM), Clang selection,
+  KernelSU-Next + SUSFS and SukiSU Ultra + SUSFS + NoMount + KPM), Clang selection,
   KPM configuration, SUSFS selection/version floor, NoMount selection/wiring,
   Android version inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
 resolves exact commits for all eleven profiles, then runs a thirteen-job
-smoke-test matrix: KernelSU-Next + SUSFS, SukiSU Ultra + SUSFS + KPM, and
+smoke-test matrix: KernelSU-Next + SUSFS, SukiSU Ultra + SUSFS + NoMount + KPM, and
 ReSukiSU + SUSFS + NoMount are validated on representative SM7550, SM8450,
 SM8550, and SM8650 sources, with an additional baseline validation for the
 LunarisOS OnePlus 11 source.
@@ -215,8 +217,8 @@ LunarisOS OnePlus 11 source.
 - This pipeline builds the raw GKI `Image`; it does not rebuild every vendor
   module or replace device-specific firmware.
 - NoMount modifies VFS behavior and upstream labels it experimental. Test its
-  dedicated preset on a recoverable device before distributing it.
-- KPM dynamically patches kernel behavior at runtime. Treat both SukiSU Ultra
+  opt-in presets on a recoverable device before distributing them.
+- KPM dynamically patches kernel behavior at runtime. Treat all SukiSU Ultra
   presets as experimental and test them only on a recoverable device.
 - Runtime performance tuning is intentionally left at upstream/vendor config
   defaults. Options such as KASAN, LTO mode, scheduler changes, and compiler

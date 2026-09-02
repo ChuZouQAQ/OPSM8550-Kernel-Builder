@@ -48,7 +48,7 @@ representative root, Clang, KPM, SUSFS, NoMount, and Android version decisions.
 The push/PR validation workflow runs Bash syntax checks, ShellCheck, these
 offline tests, and actionlint. The scheduled upstream-health workflow resolves
 every profile and runs a matrix covering KernelSU-Next + SUSFS, the combined
-SukiSU Ultra + SUSFS + KPM preset, and ReSukiSU + SUSFS + NoMount on
+SukiSU Ultra + SUSFS + NoMount + KPM preset, and ReSukiSU + SUSFS + NoMount on
 representative SM7550, SM8450, SM8550, and SM8650 sources, including targeted
 integration object compilation and a LunarisOS OnePlus 11 baseline smoke test.
 

@@ -83,6 +83,7 @@ on:
           - KowSU
           - SukiSU Ultra + KPM (experimental)
           - SukiSU Ultra + SUSFS + KPM (experimental)
+          - SukiSU Ultra + SUSFS + NoMount + KPM (experimental)
           - ReSukiSU
           - ReSukiSU + susfs
           - ReSukiSU + SUSFS + NoMount (experimental)
