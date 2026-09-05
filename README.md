@@ -14,6 +14,7 @@ and source independently.
 | SoC | Target device | AnyKernel accepted device IDs | Source preset |
 | --- | --- | --- | --- |
 | `sm7550` | OnePlus Nord CE4 | `benz`, `OP5D3FL1`, `CPH2613` | Nord CE4 development |
+| `sm7550` | OnePlus Nord CE4 | `benz`, `OP5D3FL1`, `CPH2613` | crDroid (recommended for crDroid) |
 | `sm8450` | OnePlus 10 Pro | `negroni`, `OP516EL1`, `OP516FL1` | OnePlus official |
 | `sm8450` | OnePlus 10T / Ace Pro | `ovaltine`, `OP5551L1`, `OP5552L1` | LineageOS community |
 | `sm8550` | OnePlus 11 | `salami`, `OP591BL1`, `OP594DL1` | OnePlus official |
@@ -28,10 +29,14 @@ and source independently.
 The OnePlus 10T community source is intentionally labeled `ovaltine`; it is
 not presented as a OnePlus 10 Pro source.
 
-The Nord CE4 source project stores its SM7550/crow device support in
-`sm8550`-named kernel and modules repositories and builds it with the Kalama
-GKI fragments. The profile keeps the real `sm7550` device identity in release
-metadata while resolving that upstream naming explicitly.
+The Nord CE4 source projects store their SM7550/crow device support in
+`sm8550`-named kernel and modules repositories and build it with the Kalama
+GKI fragments plus the benz-specific `CONFIG_OPLUS_DEVICE_DTBS=y` and
+`CONFIG_BENZ_DTB=y` make flags. The profiles keep the real `sm7550` device
+identity in release metadata while resolving that upstream naming explicitly.
+Use the dedicated crDroid profile on crDroid: it pins crDroid's own `16.0`
+kernel and modules instead of the unrelated development/Lineage branch, which
+is not ABI-compatible with crDroid's first-stage vendor modules.
 
 The LunarisOS OnePlus 11 profile follows the kernel source published in the
 LunarisOS OTA metadata. Its maintainer kernel uses `lineage-23.2`, while its
@@ -194,18 +199,18 @@ Pushes and pull requests run:
 
 - Bash syntax checks
 - ShellCheck at warning severity
-- offline tests for all eleven profile mappings, root mappings (including
+- offline tests for all twelve profile mappings, root mappings (including
   KernelSU-Next + SUSFS and SukiSU Ultra + SUSFS + NoMount + KPM), Clang selection,
   KPM configuration, SUSFS selection/version floor, NoMount selection/wiring,
   Android version inference, and workflow option synchronization
 - actionlint for all workflow files
 
 `Check upstream health` runs every Monday and can also be started manually. It
-resolves exact commits for all eleven profiles, then runs a thirteen-job
-smoke-test matrix: KernelSU-Next + SUSFS, SukiSU Ultra + SUSFS + NoMount + KPM, and
-ReSukiSU + SUSFS + NoMount are validated on representative SM7550, SM8450,
-SM8550, and SM8650 sources, with an additional baseline validation for the
-LunarisOS OnePlus 11 source.
+resolves exact commits for all twelve profiles, then runs a sixteen-job
+smoke-test matrix: KernelSU-Next + SUSFS, SukiSU Ultra + SUSFS + NoMount + KPM,
+and ReSukiSU + SUSFS + NoMount are validated on representative SM7550 (including
+both CE4 source families), SM8450, SM8550, and SM8650 sources, with an additional
+baseline validation for the LunarisOS OnePlus 11 source.
 
 ## Important limitations
 

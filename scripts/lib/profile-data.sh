@@ -9,6 +9,7 @@
 list_build_profiles() {
   printf '%s\n' \
     "SM7550 | OnePlus Nord CE4 | development" \
+    "SM7550 | OnePlus Nord CE4 | crDroid (recommended for crDroid)" \
     "SM8450 | OnePlus 10 Pro | OnePlus official" \
     "SM8450 | OnePlus 10T / Ace Pro | LineageOS community" \
     "SM8550 | OnePlus 11 | OnePlus official" \
@@ -30,6 +31,7 @@ resolve_build_profile() {
   KERNEL_REPO_OVERRIDE=""
   MODULES_REPO_OVERRIDE=""
   MODULES_BRANCH_OVERRIDE=""
+  KERNEL_MAKE_FLAGS=""
 
   case "$profile" in
     "SM7550 | OnePlus Nord CE4 | development")
@@ -40,6 +42,19 @@ resolve_build_profile() {
       DEVICE_NAMES="benz OP5D3FL1 CPH2613"
       KERNEL_SOURCE="OnePlus-Nord-CE4-development"
       SOURCE_LAYOUT="community-flat"
+      KERNEL_MAKE_FLAGS="CONFIG_OPLUS_DEVICE_DTBS=y CONFIG_BENZ_DTB=y"
+      ;;
+    "SM7550 | OnePlus Nord CE4 | crDroid (recommended for crDroid)")
+      PROFILE_ID="sm7550-oneplus-nord-ce4-crdroid"
+      SOC="sm7550"
+      TARGET_NAME="OnePlus Nord CE4"
+      DEVICE_CODENAMES="benz"
+      DEVICE_NAMES="benz OP5D3FL1 CPH2613"
+      KERNEL_SOURCE="crdroidandroid"
+      SOURCE_LAYOUT="community-flat"
+      # Keep parity with crDroid's benz BoardConfig.mk. These are make
+      # command-line assignments, not ordinary defconfig fragments.
+      KERNEL_MAKE_FLAGS="CONFIG_OPLUS_DEVICE_DTBS=y CONFIG_BENZ_DTB=y"
       ;;
     "SM8450 | OnePlus 10 Pro | OnePlus official")
       PROFILE_ID="sm8450-oneplus10pro-official"
@@ -141,9 +156,9 @@ resolve_build_profile() {
   esac
 
   UPSTREAM_SOC="$SOC"
-  if [[ "$KERNEL_SOURCE" == "OnePlus-Nord-CE4-development" ]]; then
-    # The CE4 project intentionally carries its SM7550/crow support in
-    # sm8550-named kernel and modules repositories.
+  if [[ "$SOC" == "sm7550" ]]; then
+    # Both supported CE4 sources intentionally carry their SM7550/crow
+    # support in sm8550-named kernel and modules repositories.
     UPSTREAM_SOC="sm8550"
   fi
 

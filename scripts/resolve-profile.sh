@@ -207,6 +207,7 @@ esac
   echo "PLATFORM_SLUG=$PLATFORM_SLUG"
   echo "PLATFORM_NAME=$PLATFORM_NAME"
   echo "BUILD_CONFIGS=$BUILD_CONFIGS"
+  echo "KERNEL_MAKE_FLAGS=$KERNEL_MAKE_FLAGS"
   echo "SOURCE_LAYOUT=$SOURCE_LAYOUT"
   echo "KERNEL_SOURCE=$KERNEL_SOURCE"
   echo "SOURCE_NAME=$SOURCE_NAME"
@@ -279,6 +280,9 @@ esac
   echo "- Modules branch: $MODULES_BRANCH"
   echo "- Modules commit: \`${MODULES_COMMIT}\`"
   echo "- Clang: $CLANG_VERSION"
+  if [[ -n "$KERNEL_MAKE_FLAGS" ]]; then
+    echo "- Device make flags: $KERNEL_MAKE_FLAGS"
+  fi
   echo "- Root solution: $KSU_TYPE"
   echo "- Mode: $INPUT_BUILD_MODE"
   if [[ -n "$SUPPORTED_ANDROID_VERSIONS" ]]; then

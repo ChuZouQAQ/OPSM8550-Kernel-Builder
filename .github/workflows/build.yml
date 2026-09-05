@@ -12,6 +12,7 @@ on:
         default: SM8550 | OnePlus 11 / 12R | LineageOS (recommended)
         options:
           - SM7550 | OnePlus Nord CE4 | development
+          - SM7550 | OnePlus Nord CE4 | crDroid (recommended for crDroid)
           - SM8450 | OnePlus 10 Pro | OnePlus official
           - SM8450 | OnePlus 10T / Ace Pro | LineageOS community
           - SM8550 | OnePlus 11 | OnePlus official

@@ -23,6 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLANG_VERSION:?}"
 : "${SOC:?}"
 : "${BUILD_CONFIGS:?}"
+: "${KERNEL_MAKE_FLAGS:=}"
 : "${SOURCE_LAYOUT:?}"
 : "${OFFICIAL_BUILD_TARGET:?}"
 : "${KSU_TYPE:?}"
@@ -99,6 +100,17 @@ MAKE_ARGS=(
   "HOSTCC=ccache clang"
   "HOSTCXX=ccache clang++"
 )
+if [[ -n "$KERNEL_MAKE_FLAGS" ]]; then
+  read -r -a KERNEL_MAKE_FLAG_ARRAY <<< "$KERNEL_MAKE_FLAGS"
+  for make_flag in "${KERNEL_MAKE_FLAG_ARRAY[@]}"; do
+    if [[ ! "$make_flag" =~ ^CONFIG_[A-Z0-9_]+=(y|m|n)$ ]]; then
+      echo "::error::Invalid device kernel make flag: $make_flag"
+      exit 1
+    fi
+  done
+  MAKE_ARGS+=("${KERNEL_MAKE_FLAG_ARRAY[@]}")
+  echo "[config] Device make flags: ${KERNEL_MAKE_FLAG_ARRAY[*]}"
+fi
 
 ccache --zero-stats || true
 CONFIG_STARTED_AT="$(date +%s)"
